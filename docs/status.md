@@ -24,6 +24,8 @@
 
 战斗页窄屏的「角色配置」「模拟配置」面板与结果列等宽。物品价格浏览器专项 4 个用例及静态检查通过，另在 390px 视口逐页确认中英文配置面板展开、折叠后均等宽。
 
+五页「物品价格」选项统一为左标签、右下拉框。浏览器专项 4 个用例通过，覆盖中英文在 1280px 和 390px 下的排列与对齐。
+
 ## Preview 与历史
 
 **1.12.0** 候选提交 `ac2c20e` 的 Preview 发布与验收通过。 [Preview 流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45637522710) · [Preview 精通](https://preview.dvi-lab.pages.dev/mastery)

@@ -64,7 +64,7 @@ export function simulationPanel(page,language,content=''){
  const labels=missingPricePages.has(page)?{...groups[page],missing:['缺价时','When price is missing']}:groups[page];
  return `<section class="panel config simulation-config"><details id="${page}-simulation-panel" class="configuration-disclosure" open><summary><h2>${index===0?'模拟配置':'Simulation settings'}</h2></summary><button id="${page}-simulation-defaults" type="button" class="text-button">${index===0?'重置设置':'Reset settings'}</button>${content}
  <section class="simulation-prices" data-page-prices="${page}"><div class="panel-heading"><h3>${index===0?'物品价格':'Item prices'}</h3><button type="button" class="secondary" data-open-global-prices>${index===0?'全局行情与锁定':'Global quotes & locks'}</button></div>
- ${Object.entries(labels).map(([key,label])=>`<label class="number-field"><span>${label[index]}</span><select data-page-price="${key}" aria-label="${label[index]}">${Object.entries(optionLabels(key)).map(([value,name])=>`<option value="${value}" ${values[key]===value?'selected':''}>${name[index]}</option>`).join('')}</select></label>`).join('')}
+ ${Object.entries(labels).map(([key,label])=>`<label class="potion"><span>${label[index]}</span><select data-page-price="${key}" aria-label="${label[index]}">${Object.entries(optionLabels(key)).map(([value,name])=>`<option value="${value}" ${values[key]===value?'selected':''}>${name[index]}</option>`).join('')}</select></label>`).join('')}
  <p class="save-note" role="status" data-page-price-status ${error?'':'hidden'}>${storageWarning(language)}</p></section></details></section>`;
 }
 

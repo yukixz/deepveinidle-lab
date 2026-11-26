@@ -38,11 +38,24 @@ try{
   await materials.selectOption('avg7d');assert.equal(await shard.isEnabled(),true);assert.equal(await shard.inputValue(),'17');
   await shard.fill('');await shard.blur();assert.equal(await shard.inputValue(),'');await page.reload();assert.equal(await shard.inputValue(),'');
   await page.screenshot({path:path.join(directory,`enhancement-${language}-${width}.png`)});
-  const groups={combat:{drops:'avg7d',consumables:'avg7d',monsterRare:'vendorPrice',missing:'warn'},gather:{products:'avg7d',consumables:'avg7d',missing:'warn'},craft:{products:'avg7d',materials:'avg7d',missing:'warn'},enhance:{materials:'avg7d'}};
+  const groups={combat:{drops:'avg7d',consumables:'avg7d',monsterRare:'vendorPrice',missing:'warn'},gather:{products:'avg7d',consumables:'avg7d',missing:'warn'},craft:{products:'avg7d',materials:'avg7d',missing:'warn'},enhance:{materials:'avg7d'},'boss-feed':{materials:'avg7d'}};
   for(const [route,expected] of Object.entries(groups)){
    await page.locator(`#${route}-nav`).click();
    const config=page.locator(`[data-page-prices="${route}"]`),open=config.locator('[data-open-global-prices]');
+   await config.waitFor();
    assert.deepEqual(await config.locator('select').evaluateAll(els=>Object.fromEntries(els.map(el=>[el.dataset.pagePrice,el.value]))),expected);
+   const priceRows=await config.locator('select').evaluateAll(selects=>selects.map(select=>{
+    const row=select.closest('label');
+    const label=row.querySelector('span').getBoundingClientRect();
+    const control=select.getBoundingClientRect();
+    const bounds=row.getBoundingClientRect();
+    return {sideBySide:label.right<control.left&&label.top<control.bottom&&control.top<label.bottom,
+     rightAligned:control.right===bounds.right,width:control.width};
+   }));
+   for(const row of priceRows){
+    assert.deepEqual(row,{sideBySide:true,rightAligned:true,width:priceRows[0].width},`${route} ${language}: item price row alignment`);
+   }
+   if(route==='combat'&&width===390)await config.screenshot({path:path.join(directory,`price-options-${language}-${width}.png`)});
    assert.equal(await config.evaluate(el=>el.closest('.simulation-config').previousElementSibling.classList.contains('config')),true);
    assert.equal(await page.locator('header [data-open-global-prices], #item-prices-open').count(),0);
    const layout=await page.evaluate(()=>{
@@ -105,19 +118,22 @@ try{
    }
 
    const character=page.locator(`#${route}-character-panel`),simulation=page.locator(`#${route}-simulation-panel`);
-   await character.locator('summary').first().click();assert.equal(await character.getAttribute('open'),null);
+   if(route!=='boss-feed'){
+    await character.locator('summary').first().click();assert.equal(await character.getAttribute('open'),null);
+   }
    assert.notEqual(await simulation.getAttribute('open'),null);
    await simulation.locator('summary').first().click();assert.equal(await open.isVisible(),false);
    await checkPanelWidths();
    await page.reload();
-   assert.notEqual(await character.getAttribute('open'),null);assert.equal(await open.isVisible(),true);
+   await open.waitFor();
+   if(route!=='boss-feed')assert.notEqual(await character.getAttribute('open'),null);
   }
   await page.locator('#mastery-nav').click();
   const mastery=page.locator('#mastery-character-panel');
   await mastery.locator('summary').first().press('Space');assert.equal(await mastery.getAttribute('open'),null);
   await page.locator('#forecast-nav').click();await page.locator('#mastery-nav').click();assert.equal(await mastery.getAttribute('open'),null);
   await mastery.locator('summary').first().press('Enter');assert.notEqual(await mastery.getAttribute('open'),null);
-  results.cases.push(`${language}/${width}: quotes and totals, enhancement override/blank, four split panels, per-page defaults/persistence, shared dialog, focus return, panel folding and reset isolation`);await context.close();
+  results.cases.push(`${language}/${width}: quotes and totals, enhancement override/blank, five split panels, price row alignment, per-page defaults/persistence, shared dialog, focus return, panel folding and reset isolation`);await context.close();
  }
  assert.deepEqual(results.errors,[]);
 }catch(error){results.failure=String(error.stack??error);throw error;}

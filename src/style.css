@@ -384,6 +384,7 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .simulation-prices .panel-heading{gap:8px;flex-wrap:wrap}
 .simulation-prices h3{font-size:13px;margin:0}
 .simulation-prices .secondary{width:auto;margin:0}
+.simulation-prices .potion select{width:150px;max-width:55%;flex:none}
 
 .configuration-disclosure{position:relative;min-width:0}
 .configuration-disclosure>summary{display:flex;align-items:baseline;gap:7px;cursor:pointer;list-style:none}
