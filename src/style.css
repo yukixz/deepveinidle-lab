@@ -348,7 +348,6 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .boss-row-detail dd{margin:2px 0 0;font-size:12px;white-space:normal;font-variant-numeric:tabular-nums}
 .boss-comparison-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px}
 #boss-feed-box-basis{color:var(--teal);font-size:11px;white-space:nowrap}
-#boss-feed-price-settings{width:auto;margin:0 0 0 auto}
 .boss-filters{display:grid;gap:10px;padding-top:5px}
 .boss-filter-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-width:0}
 .boss-filter-row .check{margin:0}

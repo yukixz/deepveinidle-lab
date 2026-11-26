@@ -4,6 +4,7 @@ import {renderBossAttributes,renderCharacterPanel} from './boss-feed-character-p
 import {bossText,escape,option} from './boss-feed-copy.js';
 import {categoryLabel,renderBossResults} from './boss-feed-results.js';
 import {getSnapshot,subscribe} from './price-service.js';
+import {bindSimulationPanel,pagePriceSettings,simulationPanel} from './page-prices.js';
 import {characterImportPanel,importStatusText,probeCharacter,registerCharacterUpdates} from './import-controls.js';
 import {worldBuffWarningText} from './world-buffs.js';
 
@@ -104,9 +105,11 @@ function calculate(forcePaint = false) {
       estimate = {boss,config,fire,...estimateRoutes({bossId:boss.id,config,settings:{fire}})};
     }
     const snapshot = getSnapshot();
-    if (estimate.snapshot !== snapshot) {
-      estimate.quotes = refreshRouteQuotes(estimate.materialIds,snapshot,estimate.quotes);
+    const materialSource = pagePriceSettings('boss-feed').values.materials;
+    if (estimate.snapshot !== snapshot || estimate.materialSource !== materialSource) {
+      estimate.quotes = refreshRouteQuotes(estimate.materialIds,snapshot,estimate.quotes,materialSource);
       estimate.snapshot = snapshot;
+      estimate.materialSource = materialSource;
     }
     if (valuation?.estimate !== estimate || valuation.quotes !== estimate.quotes ||
         valuation.dailyProfit !== dailyProfit || valuation.chargeCraftTime !== chargeCraftTime) {
@@ -374,7 +377,7 @@ export function renderBossFeed(nextLanguage) {
   host = target;
   language = nextLanguage;
   const copy = bossText(language), {text:t,named} = copy;
-  host.innerHTML = `<aside class="panel config gather-config">
+  host.innerHTML = `<div class="config-column"><aside class="panel config gather-config">
     <div class="panel-heading"><h1>${t('角色配置','Character build')}</h1><button class="text-button" type="button" id="boss-feed-reset">${t('清空配置','Reset settings')}</button></div>
     <p class="muted intro">${t('配置角色，对比技能首领投喂物品的性价比','Configure your character and compare feeding items for skilling bosses.')}</p>
     ${characterImportPanel(language,{id:'boss-feed-import-settings',statusId:'boss-feed-import-status',buttons:[{id:'boss-feed-import',label:t('导入配置','Import configuration')}]})}
@@ -387,11 +390,11 @@ export function renderBossFeed(nextLanguage) {
     </div>
     <div id="boss-feed-character"></div>
     <p class="save-note" role="status" id="boss-feed-storage"></p>
-  </aside><div class="results" id="boss-feed-results">
+  </aside>${simulationPanel('boss-feed',language)}</div><div class="results" id="boss-feed-results">
     <div class="result-heading"><div><span class="eyebrow" lang="en">SKILLING BOSSES FEEDING OVERVIEW</span><h2 id="boss-feed-title">${t('生效角色配置','Effective character build')}</h2></div><span class="style-badge" id="boss-feed-boss-badge"></span></div>
     <div class="boss-attribute-grid" id="boss-feed-attributes" role="group" aria-labelledby="boss-feed-title" tabindex="0"></div>
     <section class="panel enemies" id="boss-feed-comparison" aria-labelledby="boss-feed-comparison-title">
-      <div class="enemies-heading boss-comparison-heading"><h2 id="boss-feed-comparison-title">${t('投喂物品性价比','Feeding item value')}</h2><span id="boss-feed-box-basis">${t('每100箱','Per 100 chests')}</span><button type="button" class="secondary" id="boss-feed-price-settings" data-open-global-prices>${t('全局行情与锁定','Global quotes & locks')}</button></div>
+      <div class="enemies-heading boss-comparison-heading"><h2 id="boss-feed-comparison-title">${t('投喂物品性价比','Feeding item value')}</h2><span id="boss-feed-box-basis">${t('每100箱','Per 100 chests')}</span></div>
       ${comparisonFilters(copy)}
       <p class="table-note" id="boss-feed-results-status" role="status" hidden></p>
       <div class="table-scroll" tabindex="0" role="region" aria-labelledby="boss-feed-comparison-title"><table class="boss-feed-table"><thead></thead><tbody></tbody></table></div>
@@ -415,5 +418,6 @@ export function renderBossFeed(nextLanguage) {
   paintStorage();
   paintImport();
   wireControls();
+  bindSimulationPanel('boss-feed',()=>scheduleCalculation(false));
   calculate(true);
 }

@@ -73,7 +73,7 @@ try {
  const pressed=id=>find(id).locator('button[aria-pressed="true"]').evaluateAll(buttons=>buttons.map(button=>button.value));
  const toggle=(id,value)=>find(id).locator(`button[value="${value}"]`).click();
  async function updateMarket(status='已刷新'){
-  await page.click('#boss-feed-price-settings');
+  await page.click('[data-page-prices="boss-feed"] [data-open-global-prices]');
   await page.click('#price-import');
   await textIs('#price-status',status);
   await page.keyboard.press('Escape');
@@ -188,7 +188,7 @@ try {
  assert.equal(preserved,true);
  const importedCost=await coin('1008:buy').textContent();
  assert.notEqual(importedCost,'—');
- await page.click('#boss-feed-price-settings');
+ await page.click('[data-page-prices="boss-feed"] [data-open-global-prices]');
  await page.locator('#price-search').fill('1008');
  await page.locator('#price-search').blur();
  const price=page.locator('[data-price-value="1008"]');
@@ -200,6 +200,31 @@ try {
  const manuallyPriced=await coin('1008:buy').textContent();
  assert.notEqual(manuallyPriced,'—');
  assert.equal(requests,1);
+
+ const simulationPanel=page.locator('#boss-feed-simulation-panel');
+ const materialSource=simulationPanel.getByLabel('材料',{exact:true});
+ assert.equal(await materialSource.inputValue(),'avg7d');
+ assert.deepEqual(await materialSource.locator('option').evaluateAll(rows=>rows.map(row=>row.value)),
+  ['avg7d','sellPrice','buyPrice','vendorPrice','none']);
+ await simulationPanel.locator('summary').press('Space');
+ assert.equal(await materialSource.isVisible(),false);
+ await simulationPanel.locator('summary').press('Enter');
+ await materialSource.selectOption('none');
+ await page.waitForFunction(()=>document.querySelector('[data-boss-feed-row="1008:buy"] .column-highlight')?.textContent==='0');
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('dvi-page-prices-boss-feed')).materials),'none');
+ await find('daily-profit').fill('12.5');
+ await find('fire').uncheck();
+ await find('charge-craft-time').uncheck();
+ const beforeReset=await state();
+ const pricesBeforeReset=await page.evaluate(key=>localStorage.getItem(key),priceStorageKey);
+ await find('simulation-defaults').click();
+ assert.equal(await materialSource.inputValue(),'avg7d');
+ assert.deepEqual(await state(),beforeReset);
+ assert.equal(await page.evaluate(key=>localStorage.getItem(key),priceStorageKey),pricesBeforeReset);
+ await find('daily-profit').fill('0');
+ await find('fire').check();
+ await find('charge-craft-time').check();
+ await page.waitForFunction(value=>document.querySelector('[data-boss-feed-row="1008:buy"] .column-highlight')?.textContent===value,manuallyPriced);
 
  await toggle('quality','2');
  await row('2044:buy').waitFor();

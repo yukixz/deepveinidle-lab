@@ -127,11 +127,11 @@ export function estimateRoutes({bossId, config, settings = {}}) {
   return {routes,materialIds};
 }
 
-export function refreshRouteQuotes(materialIds, priceSnapshot, previousQuotes) {
+export function refreshRouteQuotes(materialIds, priceSnapshot, previousQuotes, materialSource = 'avg7d') {
   const quotes = new Map();
   let unchanged = previousQuotes?.size === materialIds.size;
   for (const id of materialIds) {
-    const latest = quote(priceSnapshot,id);
+    const latest = quote(priceSnapshot,id,materialSource);
     quotes.set(id,latest);
     const previous = previousQuotes?.get(id);
     unchanged &&= previous?.unitPrice === latest.unitPrice && previous?.sellQty === latest.sellQty;
@@ -153,8 +153,8 @@ export function valueRoutes(routes, quotes, {dailyProfit = 0, chargeCraftTime = 
   });
 }
 
-export function calculateRows({priceSnapshot = null, dailyProfit = 0, ...options}) {
+export function calculateRows({priceSnapshot = null, dailyProfit = 0, materialSource = 'avg7d', ...options}) {
   const {routes,materialIds} = estimateRoutes(options);
-  const quotes = refreshRouteQuotes(materialIds,priceSnapshot);
+  const quotes = refreshRouteQuotes(materialIds,priceSnapshot,undefined,materialSource);
   return valueRoutes(routes,quotes,{dailyProfit,chargeCraftTime:options.settings?.chargeCraftTime});
 }

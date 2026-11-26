@@ -13,7 +13,7 @@ const priceSnapshot = createPriceSnapshot({
   quotes:parseMarketPrices({
     game:'Deep Vein Idle', generatedAt:new Date().toISOString(), refreshSeconds:60,
     items:{
-      5:{lowestSell:770, avg7d:770, sellQty:1_390_000},
+      5:{lowestSell:810, highestBuy:700, avg7d:770, sellQty:1_390_000},
       1008:{lowestSell:630, highestBuy:420, avg7d:500, sellQty:0},
       2008:{lowestSell:8500, avg7d:8500, sellQty:42_000},
       4008:{lowestSell:null},
@@ -49,6 +49,22 @@ test('uses locked prices or seven-day averages independently of market quantitie
   const bar = find(rows,2044,'craft');
   assert.equal(bar.supply,42_000);
   assert.equal(find(rows,2044,'buy').supply,20);
+});
+
+test('material source reprices direct purchases and recipe inputs without changing supply or time',()=>{
+  const original = compare();
+  const ask = compare({materialSource:'sellPrice'});
+  const bid = compare({materialSource:'buyPrice'});
+  const vendor = compare({materialSource:'vendorPrice'});
+  const free = compare({materialSource:'none'});
+  assert.equal(find(ask,5,'buy').materials[0].unitPrice,810);
+  assert.equal(find(bid,5,'buy').materials[0].unitPrice,700);
+  assert.ok(Number.isFinite(find(vendor,5,'buy').materials[0].unitPrice));
+  assert.equal(find(ask,1008,'buy').materials[0].unitPrice,1);
+  assert.equal(find(free,1008,'buy').materialGold,0);
+  assert.equal(find(bid,2044,'craft').materialGold,null);
+  assert.equal(find(ask,2044,'craft').supply,find(original,2044,'craft').supply);
+  assert.equal(find(free,2044,'craft').totalSeconds,find(original,2044,'craft').totalSeconds);
 });
 
 test('uses the Lab upstream provenance and both work-time estimates', async () => {
