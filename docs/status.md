@@ -20,6 +20,10 @@
 
 整合后通过 635 项本地单测、静态检查，以及技能首领投喂、物品价格和采集／制造模拟配置的浏览器专项。专项验证入口见[本地开发](development.md)。完整候选检查与 Preview 验收按[发布流程](release.md)执行。
 
+技能首领页新增只含材料价格设置的「模拟配置」。本次通过 8 项相关单测、技能首领双语桌面及窄屏浏览器专项与静态检查。
+
+战斗页窄屏的「角色配置」「模拟配置」面板与结果列等宽。物品价格浏览器专项 4 个用例及静态检查通过，另在 390px 视口逐页确认中英文配置面板展开、折叠后均等宽。
+
 ## Preview 与历史
 
 **1.12.0** 候选提交 `ac2c20e` 的 Preview 发布与验收通过。 [Preview 流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45637522710) · [Preview 精通](https://preview.dvi-lab.pages.dev/mastery)
