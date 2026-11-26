@@ -209,6 +209,7 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
  #app.split-scroll .scroll-information{padding:2px 4px 4px}
 }
 @media(max-width:740px){
+ #combat-section > .config-column{align-self:stretch}
  .scroll-information{width:100%}
  .scroll-information .project-footer{padding-bottom:24px}
  .gear-row{--gear-control-height:32px;grid-template-columns:minmax(0,1fr);row-gap:4px;margin-bottom:12px}

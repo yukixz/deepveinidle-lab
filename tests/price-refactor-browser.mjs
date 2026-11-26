@@ -54,6 +54,18 @@ try{
     return {width,viewport:innerWidth,overflow};
    });
    assert.ok(layout.width<=layout.viewport,`${route} ${language} ${JSON.stringify(layout)}`);
+   const checkPanelWidths=async()=>{
+    if(width>740)return;
+    const bounds=await config.evaluate(el=>{
+     const column=el.closest('.config-column');
+     return [...column.children,column.nextElementSibling].map(panel=>{
+      const {left,right}=panel.getBoundingClientRect();
+      return [left,right];
+     });
+    });
+    assert.deepEqual(bounds.slice(0,2),[bounds[2],bounds[2]],`${route} ${language}: mobile panel edges`);
+   };
+   await checkPanelWidths();
    await open.click();
    await page.locator('#item-prices-dialog[open]').waitFor();
    await page.keyboard.press('Escape');await page.locator('#item-prices-dialog[open]').waitFor({state:'hidden'});
@@ -96,6 +108,7 @@ try{
    await character.locator('summary').first().click();assert.equal(await character.getAttribute('open'),null);
    assert.notEqual(await simulation.getAttribute('open'),null);
    await simulation.locator('summary').first().click();assert.equal(await open.isVisible(),false);
+   await checkPanelWidths();
    await page.reload();
    assert.notEqual(await character.getAttribute('open'),null);assert.equal(await open.isVisible(),true);
   }
