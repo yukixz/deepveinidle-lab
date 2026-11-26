@@ -6,8 +6,8 @@ import {enhancementStorageKey} from '../src/enhancement.js';
 test('userscript bridge imports enhancement independently, retains state on errors, and never stores inventory',async()=>{
  const original={document:globalThis.document,localStorage:Object.getOwnPropertyDescriptor(globalThis,'localStorage'),CustomEvent:globalThis.CustomEvent};
  const elements=new Map(),storage=new Map([['dvi-simulator-v1','combat configuration sentinel']]);let failStorage=false;
- class Element{innerHTML='';textContent='';open=false;disabled=false;value='';setAttribute(){}removeAttribute(){}querySelectorAll(){return [];}addEventListener(){}}
- class Document extends EventTarget{getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);}querySelectorAll(){return [];}}
+ class Element{innerHTML='';textContent='';open=false;disabled=false;value='';setAttribute(){}removeAttribute(){}querySelector(){return null;}querySelectorAll(){return [];}addEventListener(){}}
+ class Document extends EventTarget{getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);}querySelector(selector){return this.getElementById(selector);}querySelectorAll(){return [];}}
  const document=new Document();
  globalThis.document=document;globalThis.CustomEvent=class extends Event{constructor(type,args){super(type);this.detail=args.detail;}};
  globalThis.localStorage={getItem:key=>storage.get(key)??null,setItem:(key,value)=>{if(failStorage)throw Error('quota');storage.set(key,value);}};

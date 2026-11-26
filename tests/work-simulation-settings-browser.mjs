@@ -36,7 +36,7 @@ try{
    window.snapshot=snapshot;window.runs=[];const Original=Worker;
    window.Worker=class extends Original{
     constructor(url,options){super(url,options);if(String(url).includes(kind==='craft'?'crafting-worker':'gathering-worker')){this.run={rows:[]};window.runs.push(this.run);this.addEventListener('message',({data})=>{if(data.result)this.run.rows.push(data.result);if(data.done)this.run.done=true;});}}
-    postMessage(data,...rest){if(this.run)this.run.input=data;return super.postMessage(data,...rest);}
+    postMessage(data,...rest){if(this.run)this.run.input=structuredClone(data);return super.postMessage(data,...rest);}
     terminate(){if(this.run)this.run.terminated=true;return super.terminate();}
    };
    document.addEventListener('dvi-character-request',e=>{const r=JSON.parse(e.detail);document.dispatchEvent(new CustomEvent('dvi-character-response',{detail:JSON.stringify({source:'dvi-character-script',id:r.id,version:'2.4',...(r.action==='probe'?{ready:true}:{snapshot:window.snapshot})})}));});
@@ -44,12 +44,16 @@ try{
   await page.goto(`${target??`http://127.0.0.1:${port}`}/${kind}`);
   const ready=hours=>page.waitForFunction(hours=>window.runs.at(-1)?.done&&window.runs.at(-1).input.state.simulationHours===hours,hours);
   await ready(2);
-  const settings=page.locator('#'+kind+(kind==='craft'?'-settings':'-simulation'));await settings.evaluate(el=>el.open=true);
+  const settings=page.locator('#'+kind+(kind==='craft'?'-settings':'-simulation'));await settings.waitFor();
   const hours=page.locator(`[data-${kind}-field="simulationHours"]`),hot=page.locator(`[data-${kind}-field="hotSetting"]`);
   assert.equal(await hours.count(),1);assert.equal(await hours.inputValue(),'2');assert.equal(await hours.getAttribute('min'),'1');assert.equal(await hours.getAttribute('step'),'1');
   assert.equal(await page.locator(`#${kind}-period,[data-${kind}-field="durationMode"]`).count(),0);
   assert.equal(await settings.locator(`[data-${kind}-field="homeBank"]`).count(),0);
-  for(const value of ['0','1.5','1']){await hours.fill(value);await hours.blur();await ready(value==='1.5'?2:1);}
+  for(const [value,expected] of [['0',1],['1.5',2],['1',1]]){
+   await hours.fill(value);await ready(expected);
+   assert.equal(await hours.inputValue(),value);
+   await hours.blur();assert.equal(await hours.inputValue(),String(expected));
+  }
   const row=await page.evaluate(()=>window.runs.at(-1).rows[0]);
   assert.equal(kind==='craft'?row.elapsedTicks:row.durationTicks,3600000/tickMs);
   const column=kind==='craft'?4:5;
@@ -63,9 +67,49 @@ try{
   await page.evaluate(()=>{window.snapshot={...window.snapshot,capturedAt:Date.now(),worldBuffs:[{fromTick:0,toTick:200,xpMult:1.15}]};window.dispatchEvent(new Event('focus'));});
   await page.waitForFunction(kind=>Number(document.querySelector(`[data-${kind}-field="weeklyXp"]`).value)>14,kind);await ready(1);assert.equal(await hours.inputValue(),'1');
   await page.reload();await ready(1);assert.equal(await hours.inputValue(),'1');
-  await page.locator(`#${kind}-reset`).click();await ready(24);assert.equal(await hours.inputValue(),'24');
+  await page.locator(`[data-character-page="${kind}"][data-character-update="config"]`).uncheck();
+  await hot.selectOption('off');
+  const priceOptions=page.locator(`[data-page-prices="${kind}"] select`);
+  await priceOptions.first().selectOption('none');
+  if(kind==='gather'){
+   await page.locator('[data-gather-skill="fishing"]').click();
+   const jobs=page.locator('[data-gather-field="jobSelection"]');
+   const job=await jobs.locator('option').nth(1).getAttribute('value');
+   await jobs.selectOption(job);
+   await page.locator('#gather-reset').click();
+   assert.equal(await jobs.inputValue(),job);
+   assert.equal(await page.locator('[data-gather-skill="fishing"]').getAttribute('aria-pressed'),'true');
+  }else await page.locator('#craft-reset').click();
+  await ready(1);
+  assert.equal(await hours.inputValue(),'1');assert.equal(await hot.inputValue(),'off');
+  assert.equal(await priceOptions.first().inputValue(),'none');
+  if(kind==='craft')await page.locator('[data-craft-skill="smithing"]').click();
+  await page.locator(`#${kind}-simulation-defaults`).click();
+  await ready(24);assert.equal(await hours.inputValue(),'24');assert.equal(await hot.inputValue(),'current');
+  assert.equal(await priceOptions.first().inputValue(),'avg7d');
+  if(kind==='gather'){
+   assert.equal(await page.locator('[data-gather-field="jobSelection"]').inputValue(),'all');
+   assert.equal(await page.locator('[data-gather-skill="fishing"]').getAttribute('aria-pressed'),'true');
+  }else assert.equal(await page.locator('[data-craft-skill="smithing"]').getAttribute('aria-pressed'),'true');
+  const simulationRuns=await page.evaluate(()=>window.runs.length);
+  await priceOptions.first().selectOption('none');
+  await page.locator(`#${kind}-simulation-defaults`).click();
+  assert.equal(await priceOptions.first().inputValue(),'avg7d');
+  assert.equal(await page.evaluate(()=>window.runs.length),simulationRuns);
+  await hours.fill('');await hours.blur();assert.equal(await hours.inputValue(),'24');
+  const runCount=await page.evaluate(()=>window.runs.length);
+  const rolePanel=page.locator(`#${kind}-character-panel`),simulationPanel=page.locator(`#${kind}-simulation-panel`);
+  await rolePanel.locator('summary').first().press('Space');assert.equal(await rolePanel.getAttribute('open'),null);
+  await simulationPanel.locator('summary').first().click();assert.equal(await hours.isVisible(),false);
+  await page.selectOption('#language',language==='zh'?'en':'zh');
+  assert.equal(await rolePanel.getAttribute('open'),null);assert.equal(await simulationPanel.getAttribute('open'),null);
+  await page.locator('#forecast-nav').click();await page.locator(`#${kind}-nav`).click();
+  assert.equal(await simulationPanel.getAttribute('open'),null);
+  await simulationPanel.locator('summary').first().press('Enter');assert.equal(await hours.isVisible(),true);
+  assert.equal(await rolePanel.getAttribute('open'),null);
+  assert.equal(await page.evaluate(()=>window.runs.length),runCount);
   assert.ok(await page.evaluate(()=>window.runs.slice(0,-1).every(r=>r.terminated)));
-  results.cases.push(`${kind}/${language}/${width}: migration, normalization, real window/daily values, hot modes, manual/auto import, reload, reset, Worker cancellation`);
+  results.cases.push(`${kind}/${language}/${width}: migration, normalization, real window/daily values, hot modes, manual/auto import, reload, separate role/simulation resets, panel folding and Worker cancellation`);
   await context.close();
  }
  assert.deepEqual(results.errors,[]);

@@ -2,7 +2,7 @@ import {legacyPriceState} from './fixtures/legacy-price-state.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../src/upstream.js';
-import {priceDefaults,priceCategories,itemCategory,applyPricePreferences,pricePolicy,normalizePriceState,validItemId,itemFamily,setItemPrice,lockItemPrices,clearUnlockedPrices,importItemPrices,validateMarketSnapshot,mergeQuotes,valueItems,valueRewards,valuationPrice,valueCombatRewards} from '../src/item-prices.js';
+import {priceDefaults,priceCategories,itemCategory,normalizePriceState,validItemId,itemFamily,setItemPrice,lockItemPrices,clearUnlockedPrices,validateMarketSnapshot,valueItems,valueRewards,valuationPrice,valueCombatRewards} from '../src/item-prices.js';
 import {normalizeManual} from '../src/manual-settings.js';
 import {normalizeGathering} from '../src/gathering-model.js';
 import {enhancementDefaults,validateEnhancement,resolveEnhancementPrices,calculateEnhancement} from '../src/enhancement.js';
@@ -23,9 +23,6 @@ test('pets retain quantities but never contribute prices or missing-price warnin
  }
 });
 const side=value=>({value,capturedAt:at});
-const snapshot=quotes=>({version:1,quotes,invalid:0});
-const policy=(state,categories,fallback=false)=>({...state,preferences:{...state.preferences,categories:{monsterValuables:null,all:'off',...Object.fromEntries(priceCategories.map(f=>[f.key,null])),...categories},vendorFallback:Object.fromEntries(['all','monsterValuables',...priceCategories.map(f=>f.key)].map(key=>[key,fallback&&['ask','bid'].includes(categories[key])]))}});
-
 test('All defaults to seven-day averages and primary categories inherit it with independent floors disabled',()=>{
  const state=priceDefaults();assert.equal(state.preferences.categories.all,'avg7d');
  assert.ok(priceCategories.every(c=>state.preferences.categories[c.key]===null));
@@ -61,35 +58,6 @@ test('bulk locks are idempotent and never modify price provenance or timestamps'
  assert.equal(lockItemPrices(result.state,[1,1001],true).changed,0);
  result=lockItemPrices(result.state,[1,1001],false);assert.equal(result.changed,2);assert.deepEqual(result.state.prices[1],before);
 });
-test('mixed categories choose ask or bid; locked values survive imports',()=>{
- let s=policy(priceDefaults(),{resources:'bid',equipment:'ask'});s=setItemPrice(s,1,99);s=lockItemPrices(s,[1001],true).state;
- const r=importItemPrices(s,snapshot({1:{ask:side(8),bid:side(4)},1001:{bid:side(5)},110:{ask:side(50),bid:side(20)},20:{ask:side(6)}}));
- assert.equal(r.state.prices[1].price,4);assert.equal(r.state.prices[110].price,50);assert.equal(r.state.prices[1001].price,null);assert.equal(r.state.prices[20],undefined);assert.equal(r.stats.locked,1);
-});
-test('vendor floor applies to chosen bid and ask sides but leaves uncaptured prices intact',()=>{
- let s=policy(priceDefaults(),{resources:'bid',equipment:'ask'},true);s=setItemPrice(s,2,99);s=setItemPrice(s,3,77);s=setItemPrice(s,110,55);
- const r=importItemPrices(s,snapshot({1:{bid:side(null)},2:{ask:side(50)},3:{bid:side(1)},110:{ask:side(null)}}));
- assert.equal(r.state.prices[1].price,game.vendorPrice(1));assert.equal(r.state.prices[1].source,'vendor');assert.equal(r.state.prices[1].quoteCapturedAt,at);
- assert.equal(r.state.prices[2].price,99);assert.equal(r.state.prices[3].price,game.vendorPrice(3));assert.equal(r.state.prices[3].source,'vendor');assert.equal(r.state.prices[110].price,game.vendorPrice(110));assert.equal(r.stats.vendor,3);
- s.preferences.vendorFallback.resources=false;assert.equal(importItemPrices(s,snapshot({1:{bid:side(null)}})).state.prices[1],undefined);
-});
-test('untradable captured items cannot use fallback',()=>{
- const id=game.items.find(i=>{try{return game.marketFamily(game.baseItemId(i.id))&&!game.canSell(i.id);}catch{return false;}})?.id;
- assert.ok(id);const s=policy(priceDefaults(),{[itemCategory(id)]:'bid'},true),r=importItemPrices(s,snapshot({[id]:{bid:side(null)}}));
- assert.equal(r.state.prices[id],undefined);assert.ok(r.stats.unavailable>0);
-});
-test('missing and malformed observations do not zero, erase or silently reuse cache',()=>{
- let s=policy(setItemPrice(priceDefaults(),1,30),{resources:'bid'},true);s.quotes={1:{bid:side(50)}};
- let r=importItemPrices(s,snapshot({1:{ask:side(40)}}));assert.equal(r.state.prices[1].price,30);
- r=importItemPrices(s,snapshot({1:{bid:{invalid:true,capturedAt:at}}}));assert.equal(r.state.prices[1].price,30);assert.equal(r.stats.vendor,0);assert.ok(r.stats.invalid>0);
- assert.equal(validateMarketSnapshot(snapshot({9999999:{bid:side(1)}})).invalid,1);
- assert.throws(()=>importItemPrices(s,{version:9,quotes:{},invalid:0}),/invalidMarketData/);assert.equal(s.prices[1].price,30);
-});
-test('quotes and imported prices cannot move backwards, including fallback',()=>{
- let s=policy(priceDefaults(),{resources:'bid'},true);s=importItemPrices(s,snapshot({1:{bid:side(25)}})).state;
- const older={value:null,capturedAt:at-100};const r=importItemPrices(s,snapshot({1:{bid:older}}));assert.equal(r.state.prices[1].price,25);assert.equal(r.stats.stale,1);
- assert.equal(mergeQuotes(s.quotes,{1:{bid:older}})[1].bid.value,25);
-});
 test('valuation uses exact quantities and IDs, propagates missing prices and rejects overflow',()=>{
  const prices={1:{price:10},1001:{price:0}};
  assert.deepEqual(valueItems({1:2,1001:3},prices),{value:20,partial:20,missing:[]});
@@ -108,23 +76,6 @@ test('enhancement resolves explicit price modes and binds owned bases',()=>{
  s=validateEnhancement({...s,shardPrice:7,basePrice:8,priceModes:{shardPrice:'manual',scrollPrice:'global',basePrice:'manual'},basePriceItem:110});assert.equal(resolveEnhancementPrices(s,prices).basePrice,8);
  s=validateEnhancement({...s,itemId:111});assert.equal(s.priceModes.basePrice,'global');assert.equal(resolveEnhancementPrices(s,prices).basePrice,9);assert.equal(resolveEnhancementPrices(s,prices).shardPrice,7);
  s.priceModes.basePrice='owned';s.basePriceItem=111;assert.equal(resolveEnhancementPrices(s,prices).basePrice,0);s=validateEnhancement({...s,current:1});assert.equal(s.priceModes.basePrice,'global');assert.equal(resolveEnhancementPrices(s,prices).basePrice,null);
-});
-
-test('bid floor chooses the maximum and counts ties as vendor fallback',()=>{
- const vendor=game.vendorPrice(3);assert.ok(vendor>1);
- for(const [bid,expected,source]of [[vendor-1,vendor,'vendor'],[vendor,vendor,'vendor'],[vendor+1,vendor+1,'bid']]){
-  const state=policy(priceDefaults(),{resources:'bid'},true),result=importItemPrices(state,snapshot({3:{bid:side(bid)}}));
-  assert.equal(result.state.prices[3].price,expected);assert.equal(result.state.prices[3].source,source);assert.equal(result.state.prices[3].quoteCapturedAt,at);assert.equal(result.stats.vendor,source==='vendor'?1:0);
- }
- const disabled=policy(priceDefaults(),{resources:'bid'},false);assert.equal(importItemPrices(disabled,snapshot({3:{bid:side(vendor-1)}})).state.prices[3].price,vendor-1);
- const locked=lockItemPrices(setItemPrice(policy(priceDefaults(),{resources:'bid'},true),3,1),[3],true).state;
- const result=importItemPrices(locked,snapshot({3:{bid:side(vendor-1)}}));assert.equal(result.state.prices[3].price,1);assert.equal(result.stats.vendor,0);assert.equal(result.stats.locked,1);
-});
-
-test('old price formats are rejected and independent categories do not share floors',()=>{
- const old={...priceDefaults(),version:1};old.preferences.vendorFallback=true;assert.throws(()=>normalizePriceState(old),/invalidPriceStorage/);
- const s=policy(priceDefaults(),{resources:'bid',equipment:'bid'});s.preferences.vendorFallback.resources=true;
- const r=importItemPrices(s,snapshot({3:{bid:side(1)},110:{bid:side(1)}}));assert.equal(r.state.prices[3].source,'vendor');assert.equal(r.state.prices[110].price,1);assert.equal(r.state.prices[110].source,'bid');
 });
 
 test('clearing removes all unlocked prices including zero and preserves locked records and quote settings',()=>{
@@ -151,44 +102,4 @@ test('fallback warnings follow positive quantities and aggregate income and prof
  const missing=valueCombatRewards(raw,{});
  assert.deepEqual(missing.normalMissingPrices,[1]);assert.deepEqual(missing.rareMissingPrices,[3]);
  assert.deepEqual(missing.missingPrices,[1,3]);assert.deepEqual(missing.profitMissingPrices,[1,3,64,4]);
-});
-
-test('vendor category imports without quotes, preserves locks and supports saved variants',()=>{
- let state=policy(priceDefaults(),{resources:'vendor',equipment:'off'});
- state=setItemPrice(setItemPrice(state,1001,999),2,999);state=lockItemPrices(state,[2],true).state;
- assert.deepEqual(normalizePriceState(state).preferences,state.preferences);
- const result=importItemPrices(state,snapshot({1:{bid:{invalid:true,capturedAt:at}}}));
- for(const id of [1,1001])assert.deepEqual(result.state.prices[id],{price:game.vendorPrice(id),locked:false,source:'vendor',updatedAt:result.state.prices[id].updatedAt,quoteCapturedAt:null});
- assert.equal(result.state.prices[2].price,999);assert.equal(result.stats.locked,1);assert.ok(result.stats.vendor>0);assert.equal(result.stats.stale,0);assert.equal(result.state.prices[110],undefined);
- assert.equal(importItemPrices(result.state,snapshot({})).stats.vendor,0);
-});
-
-test('vendor category leaves unsellable items unchanged',()=>{
- const id=game.items.find(i=>itemFamily(i.id)&&!game.canSell(i.id)).id;
- const state=policy(setItemPrice(priceDefaults(),id,77),{[itemCategory(id)]:'vendor'});
- const result=importItemPrices(state,snapshot({[id]:{bid:side(999)}}));
- assert.equal(result.state.prices[id].price,77);assert.ok(result.stats.unavailable>0);
-});
-
-test('ask vendor floor handles low, equal, high and absent asks independently of bids',()=>{
- const vendor=game.vendorPrice(3);
- for(const value of [1,vendor,vendor+1,null]){
-  const state=policy(priceDefaults(),{resources:'ask'},true);
-  const result=importItemPrices(state,snapshot({3:{ask:side(value),bid:side(9999)}}));
-  assert.equal(result.state.prices[3].price,Math.max(value??0,vendor));
-  assert.equal(result.state.prices[3].source,value===null||value<=vendor?'vendor':'ask');
- }
-});
-
-for(const mode of ['avg7d','avg30d'])test(`${mode} imports exact variants with vendor floors, locks, invalid protection and stale rejection`,()=>{
- let state=policy(priceDefaults(),{resources:mode});state.preferences.vendorFallback.resources=true;
- state=setItemPrice(state,1,99);state=setItemPrice(state,2,0);state=lockItemPrices(state,[2],true).state;
- const vendor=game.vendorPrice(3);
- let result=importItemPrices(state,snapshot({1:{[mode]:{invalid:true,capturedAt:at}},2:{[mode]:side(77)},3:{[mode]:side(null)},1001:{[mode]:side(444.5)}}));
- assert.equal(result.state.prices[1].price,99);assert.equal(result.state.prices[2].price,0);assert.equal(result.state.prices[3].price,vendor);assert.equal(result.state.prices[3].source,'vendor');assert.equal(result.state.prices[1001].price,444.5);assert.equal(result.state.prices[1001].source,mode);
- result=importItemPrices(result.state,snapshot({1001:{[mode]:{value:777,capturedAt:at-1}}}));
- assert.equal(result.state.prices[1001].price,444.5);assert.equal(result.stats.stale,1);
- for(const [value,expected] of [[vendor-1,vendor],[vendor,vendor],[vendor+1,vendor+1]]){
-  const r=importItemPrices(state,snapshot({3:{[mode]:side(value)}}));assert.equal(r.state.prices[3].price,expected);assert.equal(r.state.prices[3].source,value<=vendor?'vendor':mode);
- }
 });

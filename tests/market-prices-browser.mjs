@@ -35,141 +35,43 @@ try{
  assert.ok(result.live.items>0);assert.ok(result.live.quantities>0);result.cases.push('real browser cross-origin official API request without userscript');await live.close();
  }
  for(const language of ['zh','en'])for(const width of [1280,390]){
-  const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage();page.setDefaultTimeout(15000);
-  page.on('pageerror',e=>result.errors.push(e.message));
-  let requests=0,fail=false;
-  const at=Date.now()-1000;
-  const payload={game:'Deep Vein Idle',generatedAt:new Date(at).toISOString(),refreshSeconds:300,items:{1:{avg7d:74,avg30d:64,lowestSell:84,highestBuy:50},2:{avg7d:80,avg30d:70,lowestSell:90,highestBuy:80},1110:{lowestSell:900,highestBuy:700}}};
-  await context.route('https://deepveinidle.com/api/market/prices.json',route=>{
-   requests++;return route.fulfill({status:fail?503:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:fail?'Unavailable':JSON.stringify(payload)});
-  });
-  let saved=setItemPrice(setItemPrice(legacyPriceState(2),1,123),2,99);for(const key of ['ore','bars','fish','wood','crops','materials','gems'])saved.preferences.categories[key]='bid';saved=setItemPrice(setItemPrice(saved,10110,55),20110,null);saved.prices[20110].locked=true;saved.prices[1].locked=true;saved.quotes={3:{bid:{value:999,capturedAt:Date.now()}}};
-  await context.addInitScript(({saved,language})=>{
-   localStorage.setItem('dvi-price-auto-import-at-v1',String(Date.now()));localStorage.setItem('dvi-item-prices-v1',JSON.stringify(saved));localStorage.setItem('dvi-simulator-v1',JSON.stringify({language}));
-  },{saved,language});
-  await page.goto(base+'/forecast');await page.selectOption('#language',language);
-  await page.locator('#item-prices-open').click();
-  await page.locator('#item-prices-dialog').waitFor();
-  assert.equal(await page.locator('#price-import-settings').evaluate(el=>el.open),false);await page.locator('#price-import-settings summary').click();
-  await page.waitForTimeout(100);assert.equal(requests,0);assert.equal(await page.locator('#price-status').textContent(),'');
-  await page.locator('#price-close').click();await page.locator('#item-prices-open').click();
-  await page.waitForTimeout(100);assert.equal(requests,0);
-  await page.selectOption('#language',language==='zh'?'en':'zh');await page.selectOption('#language',language);assert.equal(requests,0);
-  assert.equal(requests,0);assert.equal(await page.locator('[data-price-value]').count(),0);
-  const emptyPrompt=language==='zh'?'物品数量较多，请先设置筛选条件':'Many items to display; set a filter first';
-  assert.ok((await page.locator('.price-list').innerText()).includes(emptyPrompt));assert.equal(await page.locator('#price-select-all').isDisabled(),true);
-  assert.deepEqual(await page.locator('#price-filter option').evaluateAll(els=>els.map(el=>el.value)),['all','locked','unpriced']);
-  assert.equal(await page.locator('#price-import-settings a').count(),0);
-  assert.equal(await page.locator('#price-import-settings #price-import').count(),1);
-  assert.equal(await page.locator('#price-status').count(),1);
-  assert.equal(await page.locator('#price-market-status').count(),0);
-  assert.equal(await page.locator('#price-import').evaluate(el=>el.nextElementSibling.querySelector('input').id),'price-auto-import');
-  assert.equal(await page.locator('#price-import').textContent(),language==='zh'?'更新价格':'Update prices');
-  assert.equal(await page.locator('#price-auto-import').evaluate(el=>el.parentElement.textContent),language==='zh'?'自动更新价格':'Automatically update prices');
-  assert.equal(await page.locator('#price-status').evaluate(el=>el.previousElementSibling.className),'price-import-options');
-  assert.doesNotMatch(await page.locator('#price-import-settings').innerText(),/userscript|捕获|Captured/);
-  assert.deepEqual(await page.locator('[data-price-category="resources"]').evaluateAll(els=>els.map(el=>el.value)),['','avg7d','avg30d','ask','bid','vendor','off']);
-  const stored=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('dvi-item-prices-v1')));
-  const changeFilter=async(key,value)=>{const el=page.locator('#price-'+key);if(key==='search'||key==='plus'){await el.fill(value);await el.blur();}else await el.selectOption(value);};
-  const expectEmpty=async()=>{assert.equal(await page.locator('[data-price-value]').count(),0);assert.ok((await page.locator('.price-list').innerText()).includes(emptyPrompt));assert.equal(await page.locator('#price-select-all').isDisabled(),true);assert.equal(await page.locator('#price-bulk-lock').isDisabled(),true);assert.equal(await page.locator('#price-bulk-unlock').isDisabled(),true);};
-  assert.deepEqual(await stored(),saved);
-  const memory=await page.evaluate(async()=>{const {priceState}=await import('/src/item-price-store.js');return priceState();});assert.equal(memory.version,7);assert.deepEqual(memory.quotes,{});
-  assert.deepEqual(await page.locator('#price-family option').evaluateAll(els=>els.map(el=>el.value)),['all','resources','consumables','equipment','tools','valuables']);
-  assert.deepEqual(await page.locator('#price-family option').allTextContents(),(await page.locator('.price-categories tbody tr td:first-child').allTextContents()).slice(0,-1));
-  assert.equal(await page.locator('#price-plus').inputValue(),'0');
-  await changeFilter('family','equipment');assert.equal(await page.locator('[data-price-value="10110"]').count(),0);
-  await changeFilter('plus','');assert.equal(await page.locator('[data-price-value="10110"]').inputValue(),'55');assert.equal(await page.locator('[data-price-value="20110"]').inputValue(),'');
-  await changeFilter('plus','0');assert.equal(await page.locator('[data-price-value="10110"]').count(),0);
-  await changeFilter('plus','1');assert.equal(await page.locator('[data-price-value="10110"]').inputValue(),'55');
-  await changeFilter('filter','unpriced');assert.equal(await page.locator('[data-price-value="10110"]').count(),0);assert.ok(await page.locator('[data-price-value="11110"]').count()>0);
-  await changeFilter('plus','2');assert.equal(await page.locator('[data-price-value="20110"]').inputValue(),'');
-  await changeFilter('filter','locked');assert.deepEqual(await page.locator('[data-price-value]').evaluateAll(els=>els.map(el=>Number(el.dataset.priceValue))),[20110]);
-  await changeFilter('filter','all');await changeFilter('plus','0');await changeFilter('family','resources');
-  await page.locator('[data-price-value="2"]').fill('0');await page.locator('[data-price-value="2"]').blur();
-  await changeFilter('filter','unpriced');assert.equal(await page.locator('[data-price-value="2"]').count(),0);
-  await changeFilter('filter','all');await page.locator('[data-price-value="2"]').fill('');await page.locator('[data-price-value="2"]').blur();
-  await changeFilter('filter','unpriced');assert.equal(await page.locator('[data-price-value="2"]').inputValue(),'');
-  await page.screenshot({path:path.join(directory,`filters-${language}-${width}.png`)});
-  await changeFilter('filter','all');await page.locator('[data-price-value="2"]').fill('99');await page.locator('[data-price-value="2"]').blur();await page.locator('[data-price-lock="2"]').uncheck();
-  await changeFilter('family','all');await expectEmpty();assert.equal(requests,0);
-  await page.locator('#price-import').scrollIntoViewIfNeeded();
-  await page.screenshot({path:path.join(directory,`prices-${language}-${width}.png`)});
-  const layout=await page.locator('#item-prices-dialog').evaluate(el=>({width:el.getBoundingClientRect().width,scroll:el.scrollWidth,client:el.clientWidth}));
-  assert.ok(layout.width<=width,JSON.stringify(layout));assert.ok(layout.scroll<=layout.client+1,JSON.stringify(layout));
-  await page.locator('#price-import-settings summary').click();assert.equal(await page.locator('#price-import-settings').evaluate(el=>el.open),false);
-  assert.equal(requests,0);await page.locator('#price-import-settings summary').click();await page.locator('#price-import').click();await page.waitForFunction(()=>document.querySelector('#price-status')?.textContent.startsWith('已更新 ')||document.querySelector('#price-status')?.textContent.startsWith('Updated '));
-  assert.equal(requests,1);assert.equal((await stored()).version,7);assert.equal((await stored()).quotes[3],undefined);assert.equal((await stored()).prices[1].price,123);assert.equal((await stored()).prices[2].price,80);
-  assert.equal((await stored()).prices[2].quoteCapturedAt,at);
-  await expectEmpty();
-  for(const [key,value,reset]of [['family','resources','all'],['search','Tin',''],['tier','0','all'],['plus','1','0'],['filter','unpriced','all'],['filter','locked','all']]){
-   await changeFilter(key,value);assert.ok(await page.locator('[data-price-value]').count()>0,key);
-   await page.locator('#price-select-all').check();assert.equal(await page.locator('#price-bulk-lock').isDisabled(),false);
-   await changeFilter(key,reset);await expectEmpty();assert.equal(requests,1);
-  }
-  await changeFilter('search','no-such-dvi-item-xyz');assert.equal(await page.locator('[data-price-value]').count(),0);assert.ok((await page.locator('.price-list').innerText()).includes(language==='zh'?'没有匹配物品':'No matching items'));
-  await changeFilter('search','   ');await expectEmpty();await changeFilter('search','');
-  await changeFilter('family','resources');assert.equal(await page.locator('[data-price-value="1"]').inputValue(),'123');assert.equal(await page.locator('[data-price-value="2"]').inputValue(),'80');
-  await page.locator('#price-import').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(directory,`prices-filtered-${language}-${width}.png`)});
-  await page.locator('[data-price-value="2"]').fill('0');assert.equal((await stored()).prices[2].price,0);assert.equal((await stored()).prices[2].locked,true);
-  await page.locator('[data-price-value="2"]').fill('');assert.equal((await stored()).prices[2].price,null);assert.equal((await stored()).prices[2].locked,true);
-  await page.locator('[data-price-value="2"]').fill('42');await page.locator('[data-price-value="2"]').blur();
-  const before=await stored();fail=true;await page.locator('#price-import').click();await page.locator('#price-status[role="alert"]').waitFor();assert.equal(requests,2);assert.deepEqual(await stored(),before);
-  const failureText=await page.locator('#price-status').textContent();await page.locator('#price-close').click();await page.locator('#item-prices-open').click();await page.waitForTimeout(100);assert.equal(requests,2);assert.equal(await page.locator('#price-status').textContent(),failureText);
-  await page.locator('[data-price-lock="2"]').uncheck();assert.equal(await page.locator('#price-status').getAttribute('role'),'alert');
-  fail=false;await page.locator('#price-import').click();await page.waitForFunction(()=>document.querySelector('#price-status')?.textContent.startsWith('已更新 ')||document.querySelector('#price-status')?.textContent.startsWith('Updated '));assert.equal((await stored()).prices[2].price,80);assert.equal(requests,3);
-  await changeFilter('family','all');await expectEmpty();
-  page.once('dialog',dialog=>dialog.accept());await page.locator('#price-clear').click();assert.equal((await stored()).prices[2],undefined);assert.equal((await stored()).prices[1].price,123);assert.equal((await stored()).quotes[2].bid.value,80);await expectEmpty();assert.equal(requests,3);
-  await page.locator('#price-close').click();assert.equal(await page.locator('#item-prices-open').evaluate(el=>el===document.activeElement),true);
-  await page.locator('#item-prices-open').click();await page.waitForTimeout(100);assert.equal(requests,3);await page.keyboard.press('Escape');assert.equal(await page.locator('#item-prices-dialog').evaluate(el=>el.open),false);
-  result.cases.push(`${language} ${width}px: primary category filters, blank/zero/positive enhancement, locked/unpriced and zero/blank prices, empty unfiltered list, each independent filter and whitespace/no-match states, clearing deselects, global import and clear while empty, zero automatic requests, manual prices/locks, persistent filter/error and explicit retry, close and focus`);
-  await context.close();
- }
- for(const language of ['zh','en'])for(const width of [1280,390]){
   const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage();
-  page.on('pageerror',e=>result.errors.push(e.message));let requests=0,release;
-  await context.route('https://deepveinidle.com/api/market/prices.json',async route=>{
-   requests++;if(requests===1)await new Promise(resolve=>release=resolve);
-   await route.fulfill({contentType:'application/json',body:JSON.stringify({game:'Deep Vein Idle',generatedAt:new Date().toISOString(),refreshSeconds:300,items:{1:{avg7d:74,avg30d:64,lowestSell:84,highestBuy:50},2:{avg7d:80,avg30d:70,lowestSell:90,highestBuy:80}}})});
+  page.on('pageerror',e=>result.errors.push(e.message));
+  let requests=0,fail=true;
+  const payload={game:'Deep Vein Idle',generatedAt:new Date().toISOString(),refreshSeconds:300,items:{1:{avg7d:74,avg30d:64,lowestSell:84,sellQty:7,highestBuy:50,buyQty:6},2:{avg7d:80}}};
+  await context.route('https://deepveinidle.com/api/market/prices.json',route=>{
+   requests++;return route.fulfill({status:fail?503:200,contentType:'application/json',body:fail?'Unavailable':JSON.stringify(payload)});
   });
-  const saved=setItemPrice(priceDefaults(),1,123);saved.prices[1].locked=true;
-  await context.addInitScript(({language,saved})=>{
-   localStorage.setItem('dvi-simulator-v1',JSON.stringify({language}));
+  const saved=setItemPrice(setItemPrice(legacyPriceState(2),1,123),2,99);
+  saved.prices[1].locked=true;
+  await context.addInitScript(({saved,language})=>{
    if(!localStorage.getItem('dvi-item-prices-v1'))localStorage.setItem('dvi-item-prices-v1',JSON.stringify(saved));
-  },{language,saved});
-  await page.goto(base+'/forecast');await page.waitForFunction(()=>document.getElementById('item-prices-open'));
-  const requestDeadline=Date.now()+15000;
-  while(!release){assert.ok(Date.now()<requestDeadline,'Automatic import did not request prices');await page.waitForTimeout(10);}
-  assert.equal(await page.locator('#item-prices-dialog').evaluate(el=>el.open),false);assert.equal(await page.locator('#price-auto-notice').count(),0);
-  release();await page.locator('#price-auto-notice').waitFor();
-  assert.match(await page.locator('#price-auto-notice').innerText(),language==='zh'?/自动导入完成/:/import complete/);
-  assert.equal(requests,1);
-  const stored=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('dvi-item-prices-v1')));
-  assert.equal((await stored()).prices[1].price,123);assert.equal((await stored()).prices[2].price,80);
-  await page.screenshot({path:path.join(directory,`auto-notice-${language}-${width}.png`)});
-  const notice=await page.locator('#price-auto-notice').evaluate(el=>({right:el.getBoundingClientRect().right,left:el.getBoundingClientRect().left}));assert.ok(notice.left>=0&&notice.right<=width);
-  assert.equal(await page.locator('#price-auto-notice button').count(),0);await page.locator('#price-auto-notice').click();assert.equal(await page.locator('#price-auto-notice').count(),0);
-  await page.locator('#item-prices-open').click();
-  assert.equal(await page.locator('#price-import-settings').evaluate(el=>el.open),false);await page.locator('#price-import-settings summary').click();
-  assert.deepEqual(await page.locator('[data-price-category="resources"]').evaluateAll(els=>els.map(el=>el.value)),['','avg7d','avg30d','ask','bid','vendor','off']);
-  assert.equal(await page.locator('[data-price-fallback]:checked').count(),0);
-  assert.equal(await page.locator('#price-auto-import').isChecked(),true);
-  assert.equal(await page.locator('#price-import-reset').textContent(),language==='zh'?'重置价格选项':'Reset price options');
-  const optionLayout=await page.locator('.price-import-options').evaluate(el=>{const [button,label]=el.children;return {label:label.getBoundingClientRect().top,button:button.getBoundingClientRect().top,labelBottom:label.getBoundingClientRect().bottom,buttonRight:button.getBoundingClientRect().right,labelLeft:label.getBoundingClientRect().left};});
-  assert.ok(optionLayout.button<optionLayout.labelBottom&&optionLayout.buttonRight<=optionLayout.labelLeft,JSON.stringify(optionLayout));
-  const statusLayout=await page.locator('#price-status').evaluate(el=>({top:el.getBoundingClientRect().top,controlsBottom:el.previousElementSibling.getBoundingClientRect().bottom}));
-  assert.ok(statusLayout.top>=statusLayout.controlsBottom,JSON.stringify(statusLayout));
-  const rowHeights=await page.locator('.price-categories tbody tr').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().height));
-  assert.ok(rowHeights.every(height=>height<=(width===1280?40:180)),JSON.stringify(rowHeights));
-  const settingsLayout=await page.locator('.price-categories').evaluate(el=>({scroll:el.scrollWidth,client:el.clientWidth,table:el.querySelector('table').getBoundingClientRect().width}));assert.ok(settingsLayout.scroll<=settingsLayout.client+1,JSON.stringify(settingsLayout));
-  if(width===1280)assert.ok(settingsLayout.table<=settingsLayout.client,JSON.stringify(settingsLayout));
-  await page.locator('#price-auto-import').uncheck();assert.equal((await stored()).preferences.autoImport,false);await page.locator('[data-price-category="resources"][value="ask"]').check();await page.locator('[data-price-fallback="resources"]').check();await page.locator('[data-price-category="equipment"][value="off"]').check();
-  assert.equal((await stored()).preferences.vendorFallback.resources,true);
-  await page.locator('#price-import-reset').click();assert.deepEqual((await stored()).preferences,priceDefaults().preferences);assert.equal(requests,1);assert.equal((await stored()).prices[1].locked,true);
-  await page.screenshot({path:path.join(directory,`category-height-${language}-${width}.png`)});
-  await page.reload();await page.locator('#item-prices-open').waitFor();assert.equal(requests,1);assert.equal(await page.locator('#price-auto-notice').count(),0);
-  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForTimeout(50);assert.equal(requests,1);
-  await page.evaluate(()=>{localStorage.setItem('dvi-price-auto-import-at-v1',String(Date.now()-300000));window.dispatchEvent(new Event('focus'));});await page.locator('#price-auto-notice').waitFor();assert.equal(requests,2);
-  result.cases.push(`${language} ${width}px: automatic background import, completion notice/dismiss, locks, All default seven-day averages and primary category inheritance, independent floors, compact category rows, reset revalues unlocked prices and preserves locks, reload within five minutes and import after five minutes`);
+   localStorage.setItem('dvi-price-auto-import-at-v1',String(Date.now()));
+   localStorage.setItem('dvi-simulator-v1',JSON.stringify({language}));
+  },{saved,language});
+  await page.goto(base+'/enhance');
+  const opener=page.locator('#enhance-section [data-open-global-prices]');
+  await opener.click();assert.equal(requests,0);
+  assert.equal(await page.locator('#price-import-settings, #price-import-reset, [data-price-category]').count(),0);
+  assert.equal(await page.locator('.price-sync #price-import, .price-sync #price-auto-import').count(),2);
+  await page.locator('#price-import').click();await page.locator('#price-status[role="alert"]').waitFor();
+  const error=await page.locator('#price-status').textContent();
+  await page.locator('#price-close').click();await opener.click();assert.equal(await page.locator('#price-status').textContent(),error);
+  fail=false;await page.locator('#price-import').click();
+  await page.waitForFunction(()=>/已刷新|Refreshed/.test(document.getElementById('price-status')?.textContent));
+  assert.equal(requests,2);
+  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('dvi-item-prices-v1')));
+  assert.equal(stored.version,8);assert.equal(stored.prices[1].price,123);assert.equal(stored.prices[1].locked,true);
+  assert.equal(stored.prices[2].price,99);assert.equal(stored.quotes[1].avg7d.value,74);
+  await page.locator('#price-search').fill('Copper');await page.locator('#price-search').blur();
+  assert.equal(await page.locator('[data-price-value="1"]').inputValue(),'123');
+  await page.locator('#price-filter').selectOption('locked');
+  assert.equal(await page.locator('[data-price-value="1"]').count(),1);
+  assert.ok(await page.locator('#item-prices-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+  await page.screenshot({path:path.join(directory,`quotes-${language}-${width}.png`)});
+  await page.keyboard.press('Escape');await page.locator('#item-prices-dialog[open]').waitFor({state:'hidden'});
+  assert.equal(await opener.evaluate(el=>document.activeElement===el),true);
+  result.cases.push(`${language} ${width}px: global dialog, offline open, preserved error, quote-only refresh, lock and migration, filter, focus`);
   await context.close();
  }
  {
@@ -177,7 +79,7 @@ try{
   await context.route('https://deepveinidle.com/api/market/prices.json',route=>{requests++;return route.fulfill({status:503,body:'Unavailable'});});
   await page.goto(base+'/forecast');await page.locator('#price-auto-notice [role="alert"]').waitFor();
   assert.match(await page.locator('#price-auto-notice').innerText(),/failed|失败/);
-  await page.reload();await page.locator('#item-prices-open').waitFor();assert.equal(requests,1);
+  await page.reload();await page.locator('#forecast-content').waitFor();assert.equal(requests,1);
   result.cases.push('automatic API failure is visible and not retried on reload within five minutes');await context.close();
  }
  if(!toolbarOnly){
@@ -196,9 +98,9 @@ try{
   const saved=priceDefaults();saved.preferences.autoImport=false;
   await context.addInitScript(saved=>{if(!localStorage.getItem('dvi-item-prices-v1'))localStorage.setItem('dvi-item-prices-v1',JSON.stringify(saved));},saved);
   await context.route('https://deepveinidle.com/api/market/prices.json',route=>{requests++;return route.fulfill({status:503,body:'Unavailable'});});
-  await page.goto(base+'/forecast');await page.locator('#item-prices-open').click();assert.equal(requests,0);assert.equal(await page.locator('#price-auto-import').isChecked(),false);
-  await page.reload();await page.locator('#item-prices-open').click();assert.equal(requests,0);assert.equal(await page.locator('#price-auto-import').isChecked(),false);
-  await page.locator('#price-import-settings summary').click();await page.locator('#price-auto-import').check();assert.equal(requests,0);await page.reload();await page.locator('#price-auto-notice').waitFor();assert.equal(requests,1);
+  await page.goto(base+'/enhance');await page.locator('#enhance-section [data-open-global-prices]').click();assert.equal(requests,0);assert.equal(await page.locator('#price-auto-import').isChecked(),false);
+  await page.reload();await page.locator('#enhance-section [data-open-global-prices]').click();assert.equal(requests,0);assert.equal(await page.locator('#price-auto-import').isChecked(),false);
+  await page.locator('#price-auto-import').check();assert.equal(requests,0);await page.reload();await page.locator('#price-auto-notice').waitFor();assert.equal(requests,1);
   result.cases.push('automatic import checkbox persists across reloads, prevents requests while off, and enables the next visit');await context.close();
  }
  for(const fail of [false,true]){
@@ -222,7 +124,7 @@ try{
   await context.route('https://deepveinidle.com/api/market/prices.json',route=>{requests++;return route.fulfill({contentType:'application/json',body:JSON.stringify({game:'Deep Vein Idle',generatedAt:at.toISOString(),refreshSeconds:300,items:{1:{lowestSell:84,highestBuy:50}}})});});
   await page.goto(base+'/forecast');await page.locator('#price-auto-notice').waitFor();assert.equal(requests,1);
   await page.clock.fastForward(299999);assert.equal(requests,1);
-  await page.reload();await page.locator('#item-prices-open').waitFor();assert.equal(requests,1);assert.equal(await page.locator('#price-auto-notice').count(),0);
+  await page.reload();await page.locator('#forecast-content').waitFor();assert.equal(requests,1);assert.equal(await page.locator('#price-auto-notice').count(),0);
   await page.clock.fastForward(1);assert.equal(requests,1);
   await page.reload();await page.locator('#price-auto-notice').waitFor();assert.equal(requests,2);
   await page.clock.fastForward(300000);assert.equal(requests,2);

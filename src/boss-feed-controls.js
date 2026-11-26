@@ -391,7 +391,7 @@ export function renderBossFeed(nextLanguage) {
     <div class="result-heading"><div><span class="eyebrow" lang="en">SKILLING BOSSES FEEDING OVERVIEW</span><h2 id="boss-feed-title">${t('生效角色配置','Effective character build')}</h2></div><span class="style-badge" id="boss-feed-boss-badge"></span></div>
     <div class="boss-attribute-grid" id="boss-feed-attributes" role="group" aria-labelledby="boss-feed-title" tabindex="0"></div>
     <section class="panel enemies" id="boss-feed-comparison" aria-labelledby="boss-feed-comparison-title">
-      <div class="enemies-heading boss-comparison-heading"><h2 id="boss-feed-comparison-title">${t('投喂物品性价比','Feeding item value')}</h2><span id="boss-feed-box-basis">${t('每100箱','Per 100 chests')}</span></div>
+      <div class="enemies-heading boss-comparison-heading"><h2 id="boss-feed-comparison-title">${t('投喂物品性价比','Feeding item value')}</h2><span id="boss-feed-box-basis">${t('每100箱','Per 100 chests')}</span><button type="button" class="secondary" id="boss-feed-price-settings" data-open-global-prices>${t('全局行情与锁定','Global quotes & locks')}</button></div>
       ${comparisonFilters(copy)}
       <p class="table-note" id="boss-feed-results-status" role="status" hidden></p>
       <div class="table-scroll" tabindex="0" role="region" aria-labelledby="boss-feed-comparison-title"><table class="boss-feed-table"><thead></thead><tbody></tbody></table></div>

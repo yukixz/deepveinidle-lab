@@ -1,8 +1,11 @@
 import {requestMarket} from './market-import.js';
-import {priceStorageKey,priceDefaults,normalizePriceState,validateMarketSnapshot,importItemPrices,applyPricePreferences,hasPriceImports} from './item-prices.js';
-let state=priceDefaults(),saveError=null,initialized=false;const listeners=new Set();
+import {priceStorageKey,normalizePriceState,validateMarketSnapshot} from './item-prices.js';
+let state={version:8,prices:{},quotes:{},preferences:{autoImport:true}},saveError=null,initialized=false;const listeners=new Set();
 function initialize(){if(initialized)return;initialized=true;
- try{const raw=localStorage.getItem(priceStorageKey);if(raw)state=normalizePriceState(JSON.parse(raw));}catch(error){saveError=error.message==='invalidPriceStorage'?'invalidPriceStorage':'priceReadFailed';}
+ try{const raw=localStorage.getItem(priceStorageKey);if(raw){
+  const previous=normalizePriceState(JSON.parse(raw));
+  state={version:8,prices:previous.prices,quotes:previous.quotes,preferences:{autoImport:previous.preferences.autoImport}};
+ }}catch(error){saveError=error.message==='invalidPriceStorage'?'invalidPriceStorage':'priceReadFailed';}
 }
 export function priceState(){initialize();return state;}
 export function priceSaveError(){initialize();return saveError;}
@@ -13,23 +16,30 @@ export function updatePrices(next){initialize();const previous=state,previousErr
 }
 export function subscribePrices(listener){listeners.add(listener);return ()=>listeners.delete(listener);}
 
-export function setPricePreferences(preferences){updatePrices(applyPricePreferences(priceState(),preferences));}
+export function setAutoUpdate(autoImport){
+ const current=priceState();
+ updatePrices({...current,preferences:{autoImport}});
+}
 
 let marketRequest;
-export async function refreshMarketPrices(preferences=priceState().preferences){
- const selected=structuredClone(preferences),startedPreferences=JSON.stringify(priceState().preferences);
- marketRequest??=requestMarket().finally(()=>{marketRequest=null;});
- const response=await marketRequest;
+export function refreshMarketPrices(){
+ marketRequest??=refreshQuotes().finally(()=>{marketRequest=null;});
+ return marketRequest;
+}
+async function refreshQuotes(){
+ const current=priceState();
+ if(saveError==='invalidPriceStorage'||saveError==='priceReadFailed')throw Error(saveError);
+ const response=await requestMarket();
  if(!response.snapshot)throw Error('noMarketData');
  const parsed=validateMarketSnapshot(response.snapshot);
- if(!Object.keys(parsed.quotes).length)throw Error(parsed.invalid?'invalidMarketData':'noMarketData');
- const latest=Math.max(0,...Object.values(priceState().quotes).flatMap(q=>Object.values(q).map(side=>side.capturedAt)));
+ const count=Object.keys(parsed.quotes).length;
+ if(!count)throw Error(parsed.invalid?'invalidMarketData':'noMarketData');
+ const latest=Math.max(0,...Object.values(current.quotes).flatMap(q=>Object.values(q).map(side=>side.capturedAt)));
  const incoming=Math.max(...Object.values(parsed.quotes).flatMap(q=>Object.values(q).map(side=>side.capturedAt)));
  if(incoming<latest)throw Error('marketStale');
- const current=priceState(),effective=JSON.stringify(current.preferences)===startedPreferences?selected:current.preferences;
- const result=importItemPrices(current,response.snapshot,effective);
- updatePrices({...result.state,quotes:parsed.quotes});
- return result;
+ updatePrices({...priceState(),quotes:parsed.quotes});
+ if(saveError)throw Error(saveError);
+ return {stats:{count,invalid:parsed.invalid}};
 }
 
 export const priceAutoImportTimeKey='dvi-price-auto-import-at-v1';
@@ -38,7 +48,7 @@ export async function importAutomaticPrices(now=Date.now()){
  const claim=()=>{
   initialize();
   if(saveError)throw Error(saveError);
-  if(!state.preferences.autoImport||!hasPriceImports(state.preferences))return false;
+  if(!state.preferences.autoImport)return false;
   try{
    const saved=localStorage.getItem(priceAutoImportTimeKey),last=Number(saved);
    if(saved!==null&&(!Number.isSafeInteger(last)||last<=0))throw Error('invalidAutoImportTime');
@@ -49,7 +59,5 @@ export async function importAutomaticPrices(now=Date.now()){
  };
  const claimed=globalThis.navigator?.locks?await navigator.locks.request(priceAutoImportTimeKey,async()=>claim()):claim();
  if(!claimed)return null;
- const result=await refreshMarketPrices();
- if(priceSaveError())throw Error(priceSaveError());
- return result;
+ return refreshMarketPrices();
 }

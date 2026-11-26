@@ -26,7 +26,7 @@ async function notifyAutomaticPriceImport(getLanguage){
  document.getElementById('price-auto-notice')?.click();
  const notification=document.createElement('div');notification.id='price-auto-notice';notification.className='price-auto-notice';
  const message=document.createElement('span');message.setAttribute('role',error?'alert':'status');
- message.textContent=error?(zh?'物品价格自动导入失败：':'Automatic price import failed: ')+(marketErrors[error]??storageErrors[error]??[error,error])[zh?0:1]:(zh?`物品价格自动导入完成，已更新 ${result.stats.updated} 项价格。`:`Automatic price import complete. Updated ${result.stats.updated} prices.`);
+ message.textContent=error?(zh?'物品价格自动导入失败：':'Automatic price import failed: ')+(marketErrors[error]??storageErrors[error]??[error,error])[zh?0:1]:(zh?`市场行情自动更新完成，已刷新 ${result.stats.count} 个物品变体。`:`Market quotes refreshed for ${result.stats.count} item variants.`);
  notification.setAttribute('role','button');notification.tabIndex=0;
  notification.setAttribute('aria-label',message.textContent+' '+(zh?'点击关闭':'Click to dismiss'));
  const timeout=setTimeout(()=>notification.remove(),30000);

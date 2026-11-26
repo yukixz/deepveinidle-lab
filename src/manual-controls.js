@@ -17,6 +17,6 @@ export function manualControls(state,{language,number,options,esc,name}){
 
  const duration=simulationHoursField(language,m.simulationHours,'data-path','manual.simulationHours');
  const enemies=select('enemySelection','敌人','Enemies',[["all",label('全部','All')],...[...game.monsters].sort((a,b)=>b.level-a.level).map(m=>[monsterKey(m),name(m.name)])]);
- const simulation=section('simulation-settings','模拟配置','Simulation settings',enemies+duration+hot);
+ const simulation=`<div id="simulation-settings">${enemies+duration+hot}</div>`;
  return {food,other,simulation};
 }

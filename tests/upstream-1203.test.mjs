@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../src/upstream.js';
-import {priceDefaults,setItemPrice,valuationPrice,valueItems,importItemPrices,itemFamily} from '../src/item-prices.js';
+import {priceDefaults,setItemPrice,valuationPrice,valueItems} from '../src/item-prices.js';
 import {createPriceSnapshot} from '../src/price-protocol.js';
 import {dropValue} from '../src/simulation.js';
 
@@ -16,9 +16,7 @@ test('1203 abyssal eye discount reaches vendor estimates and explicit prices kee
  assert.deepEqual(valuationPrice(207,prices),{price:288000,fallback:true});
  assert.equal(valueItems({207:2},prices).value,576000);
  const manual=createPriceSnapshot(setItemPrice(state,207,350000));assert.deepEqual(valuationPrice(207,manual),{price:350000,fallback:false});
- const family=itemFamily(207);state.preferences.categories[family]='vendor';
- const imported=importItemPrices(state,{version:1,quotes:{},invalid:0}).state;
- assert.equal(imported.prices[207].price,288000);assert.equal(imported.prices[207].source,'vendor');
+
 });
 
 test('1203 cached level queries preserve exact XP boundaries and interleaved callers',()=>{

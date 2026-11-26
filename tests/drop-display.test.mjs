@@ -42,7 +42,7 @@ test('combat methodology note identifies simulated and expected fields in both l
 });
 test('drop quantities use adaptive precision after daily conversion without changing consumables',()=>{
  for(const language of ['zh','en'])for(const hours of [1,6,24,48]){
-  const c=vm.createContext({timingDetails,compactNumber,formatUnitPrice,language,state:{manual:{simulationHours:hours}},rewardAmount,game:{isPet:id=>id===280,itemTier:()=>0,baseItemId:id=>id,item:()=>({name:'Item'})},valuationPrice:()=>({price:1,fallback:false}),getSnapshot:()=>({}),esc:String,name:String});
+  const c=vm.createContext({timingDetails,compactNumber,formatUnitPrice,language,state:{manual:{simulationHours:hours}},rewardAmount,game:{isPet:id=>id===280,itemTier:()=>0,baseItemId:id=>id,item:()=>({name:'Item'})},pageValuation:()=>()=>({price:1,fallback:false}),getSnapshot:()=>({}),esc:String,name:String});
   vm.runInContext(quantityCode,c);
   const factor=rewardAmount(1,'day',hours);
   for(const [value,expected] of [[0,'0'],[0.000001,'1/1,000,000'],[0.03,'1/33'],[0.026,'1/38'],[0.027,'1/37'],[0.099,'1/10'],[0.1,'0.10'],[0.1234,'0.12'],[1,'1.00'],[9.994,'9.99'],[10,'10'],[10.6,'11']]){

@@ -8,7 +8,7 @@ import {priceDefaults,priceStorageKey} from '../src/item-prices.js';
 import {marketPricesUrl} from '../src/market-import.js';
 import {levelXp} from '../src/upstream.js';
 
-const directory='.test-artifacts/boss-feed';
+const directory=process.argv[2]??'.test-artifacts/boss-feed';
 await fs.mkdir(directory,{recursive:true});
 const server=spawn(process.execPath,['scripts/serve.mjs'],{env:{...process.env,PORT:'0'},stdio:['ignore','pipe','pipe']});
 let browser;
@@ -72,10 +72,8 @@ try {
  const options=id=>find(id).locator('option').allTextContents();
  const pressed=id=>find(id).locator('button[aria-pressed="true"]').evaluateAll(buttons=>buttons.map(button=>button.value));
  const toggle=(id,value)=>find(id).locator(`button[value="${value}"]`).click();
- async function updateMarket(status='已更新'){
-  await page.click('#item-prices-open');
-  const settings=page.locator('#price-import-settings');
-  if(!await settings.evaluate(node=>node.open))await settings.locator('summary').click();
+ async function updateMarket(status='已刷新'){
+  await page.click('#boss-feed-price-settings');
   await page.click('#price-import');
   await textIs('#price-status',status);
   await page.keyboard.press('Escape');
@@ -125,6 +123,7 @@ try {
  }
  assert.equal(await page.evaluate(()=>window.bossFeedReads),1);
  await bossButton(0).click();
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 
  const pageLabel=find('page-label');
  const first=find('first-page');
@@ -189,11 +188,11 @@ try {
  assert.equal(preserved,true);
  const importedCost=await coin('1008:buy').textContent();
  assert.notEqual(importedCost,'—');
- await page.click('#item-prices-open');
+ await page.click('#boss-feed-price-settings');
  await page.locator('#price-search').fill('1008');
  await page.locator('#price-search').blur();
  const price=page.locator('[data-price-value="1008"]');
- assert.equal(await price.inputValue(),'500');
+ assert.equal(await price.inputValue(),'');
  await price.fill('900');
  assert.equal(await page.locator('[data-price-lock="1008"]').isChecked(),true);
  await page.keyboard.press('Escape');

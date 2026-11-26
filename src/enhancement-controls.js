@@ -1,3 +1,4 @@
+import {bindSimulationPanel,pagePriceSettings,selectedUnitPrice,simulationPanel} from './page-prices.js';
 import {getSnapshot,subscribe} from './price-service.js';
 import {searchSelectMarkup,bindSearchSelect} from './search-select.js';
 import * as game from './upstream.js';
@@ -30,7 +31,11 @@ const formatMoney=value=>Math.ceil(value).toLocaleString(language==='zh'?'zh-CN'
 const profitText=(cost,rate,tax)=>text('税后利润：','Profit after tax: ')+(cost===null?text('未完整定价','Incomplete pricing'):formatMoney(enhancementFee(cost,rate,tax)*rate/100));
 const field=(key,label,min,max,step=1,value=state[key])=>`<label class="number-field"><span>${label}</span><input data-enhance-field="${key}" type="number" min="${min}" max="${max}" step="${step}" value="${value??''}"></label>`;
 function resetBaseOverride(){const id=game.encode(game.withRarity(state.itemId,state.tier),state.current);if(state.basePriceItem!==null&&state.basePriceItem!==id){state.priceModes.basePrice='global';state.basePrice=null;state.basePriceItem=null;}}
-function previewPrices(){try{return resolveEnhancementPrices(state,getSnapshot());}catch{return {shardPrice:null,scrollPrice:null,basePrice:null};}}
+function currentPrices(){
+ const snapshot=getSnapshot(),{materials}=pagePriceSettings('enhance').values;
+ return resolveEnhancementPrices(state,snapshot,(id,key)=>selectedUnitPrice(snapshot,id,key==='basePrice'?'avg7d':materials),materials==='none');
+}
+function previewPrices(){try{return currentPrices();}catch{return {shardPrice:null,scrollPrice:null,basePrice:null};}}
 function save(){try{localStorage.setItem(enhancementStorageKey,JSON.stringify(validateEnhancement(state)));saveOK=true;}catch(error){saveOK=false;}}
 function renderStatus(){const el=document.getElementById('enhance-import-status');if(!el)return;
  el.textContent=importStatusText(language,status,busy);
@@ -67,7 +72,7 @@ function startDistribution(priced,result,revision){
 }
 function renderResults(){const revision=cancelDistribution();const host=document.getElementById('enhance-results');if(!host)return;
  const note=document.getElementById('enhance-save-note');note.textContent=saveOK?text('● 强化配置独立保存在此浏览器','● Enhancement settings saved separately in this browser'):text('配置未保存：请检查输入或浏览器存储。','Settings were not saved. Check inputs or browser storage.');
- let result,priced;try{priced=resolveEnhancementPrices(state,getSnapshot());result=calculateEnhancement(priced);}catch(error){host.innerHTML=`<div class="issue-box" role="alert">${esc(errorMessage(error.message))}</div>`;return;}
+ let result,priced;try{priced=currentPrices();result=calculateEnhancement(priced);}catch(error){host.innerHTML=`<div class="issue-box" role="alert">${esc(errorMessage(error.message))}</div>`;return;}
  const {totals,steps,pricedGold,purchaseTotal,expectedFee}=result;
  const incomplete=text('未完整定价','Incomplete pricing');
  const money=value=>value===null?incomplete:formatMoney(value);
@@ -94,17 +99,18 @@ export function applyEnhancementImport(snapshot){
 export function renderEnhancement(nextLanguage){
  const openDetails=new Map([...document.querySelectorAll('#enhance-section details[id]')].map(el=>[el.id,el.open]));
  language=nextLanguage;const host=document.getElementById('enhance-content');if(!host)return;
- host.innerHTML=`<aside class="panel config enhance-config"><div class="panel-heading"><h1>${text('角色配置','Character build')}</h1><button id="enhance-reset" class="text-button">${text('清空配置','Reset settings')}</button></div><p class="muted intro">${text('配置角色的强化技能与成功率加成。','Configure enhancing skill and success chance bonuses.')}</p>
+ host.innerHTML=`<div class="config-column"><aside class="panel config enhance-config"><details id="enhance-character-panel" class="configuration-disclosure" open><summary><h1>${text('角色配置','Character build')}</h1></summary><button id="enhance-reset" class="text-button">${text('清空配置','Reset settings')}</button><p class="muted intro">${text('配置角色的强化技能与成功率加成。','Configure enhancing skill and success chance bonuses.')}</p>
  ${characterImportPanel(language,{id:'enhance-import-settings',statusId:'enhance-import-status',buttons:[{id:'enhance-import',label:text('导入配置','Import configuration')}]})}
  <details class="config-detail" id="enhance-skill-settings"><summary>${text('技能','Skills')}</summary><div class="skill-grid">${field('level',text('强化技能等级','Enhancing skill level'),1,game.maxLevel)}</div><p class="micro">${text('强化技能每比 1 级高一级，成功率倍率增加 0.2%。','Each enhancing level above level 1 adds 0.2% to the success chance multiplier.')}</p></details>
  <details class="config-detail" id="enhance-home-settings"><summary>${text('家园','Home')}</summary><div class="skill-grid">${field('lectern',text('符文书台等级','Rune lectern level'),0,game.houseLevelLimit)}</div><p class="micro">${text('符文书台只计已放置的等级，每级将成功率乘以额外 1%。','Only placed rune lectern levels apply; +1% of the chance per level.')}</p></details>
  <details class="config-detail" id="enhance-mastery-settings"><summary>${text('精通','Masteries')}</summary><label class="number-field"><span>${text('强化精通实际加成 (%)','Effective enhance mastery bonus (%)')}</span><input data-enhance-field="mastery" type="number" min="0" max="${game.enhanceMasteryBonusCap*100}" step="0.25" value="${state.mastery===null?'':Math.min(game.enhanceMasteryBonusCap*100,state.mastery*0.25)}"></label></details>
- <p class="save-note" id="enhance-save-note"></p></aside><div class="results enhance-workspace"><section class="panel enhance-equipment"><div class="panel-heading"><h2>${text('强化配置','Enhancement settings')}</h2><button id="enhance-equipment-reset" class="text-button">${text('清空配置','Reset settings')}</button></div>
+ <p class="save-note" id="enhance-save-note"></p></details></aside>${simulationPanel('enhance',language)}</div><div class="results enhance-workspace"><section class="panel enhance-equipment"><div class="panel-heading"><h2>${text('强化配置','Enhancement settings')}</h2><button id="enhance-equipment-reset" class="text-button">${text('清空配置','Reset settings')}</button></div>
  <div class="enhance-item-row">${searchSelectMarkup('enhance-item-search',text('装备 / 工具','Equipment / tool'))}
  <label class="enhance-select"><span>${text("稀有度",'Rarity')}</span><select data-enhance-field="tier">${options(rarities().map((x,i)=>[i,x]),state.tier)}</select></label></div>
  <div class="enhance-item-row enhance-level-row">${field('current',text('当前强化值','Current enhancement'),0,game.maxEnhancement)}${field('target',text('目标强化值','Target enhancement'),0,Math.max(game.enhancementTargetLimit,state.current??0))}<label class="number-field"><span>${text('使用保护卷轴','Use protection scrolls')}</span><select data-enhance-field="protect">${options([['true',text('使用','Use')],['false',text('不使用','Do not use')]],state.protect)}</select></label>${field('protectFrom',text('保护卷轴起始等级','Protection scroll starting level'),game.protectionMin,game.maxEnhancement)}</div>
  <section class="config-detail" id="enhance-price-settings"><h3>${text('价格与收费设置','Prices and fees')}</h3><div class="enhance-item-row enhance-price-row">${field('shardPrice',text('虚空碎片','Voidshard'),0,Number.MAX_SAFE_INTEGER,'any',previewPrices().shardPrice)}${field('scrollPrice',text('保护卷轴','Protection scroll'),0,Number.MAX_SAFE_INTEGER,'any',previewPrices().scrollPrice)}${field('basePrice',text('底装购置费','Base item purchase'),0,Number.MAX_SAFE_INTEGER,'any',previewPrices().basePrice)}</div><div class="enhance-item-row">${field('taxRate',text('市场税率 (%)','Market tax rate (%)'),0,100,'any')}${field('profitRate',text('期望利润率 (%)','Expected profit margin (%)'),0,100,'any')}</div></section></section><div id="enhance-results" aria-live="polite"></div></div>`;
 
+ bindSimulationPanel('enhance',refreshPricing);
  host.querySelectorAll('[data-enhance-field]').forEach(el=>{
   const update=()=>{const key=el.dataset.enhanceField;state[key]=key==='protect'?el.value==='true':el.value===''?null:Number(el.value)/(key==='mastery'?0.25:1);if(key==='mastery'&&Number(el.value)>game.enhanceMasteryBonusCap*100)state.mastery=NaN;if(Object.hasOwn(state.priceModes,key)){state.priceModes[key]='manual';if(key==='basePrice')state.basePriceItem=game.encode(game.withRarity(state.itemId,state.tier),state.current);}if(['current','tier'].includes(key))resetBaseOverride();save();if(['current','tier'].includes(key)&&Number.isInteger(state.current)&&state.current>=0&&state.current<=game.maxEnhancement)renderEnhancement(language);else renderResults();};
   if(el.type==='number'&&el.dataset.enhanceField!=='current')el.oninput=update;else el.onchange=update;
@@ -115,16 +121,21 @@ export function renderEnhancement(nextLanguage){
  document.getElementById('enhance-equipment-reset').onclick=()=>{const {guild,level,lectern,mastery}=state;state={...enhancementDefaults(),guild,level,lectern,mastery};save();renderEnhancement(language);};
  document.getElementById('enhance-import').onclick=()=>enhancementUpdater.read();
  if(!probeStarted){probeStarted=true;probeCharacter().then(()=>{if(!status&&!busy){status={ready:true};renderStatus();}}).catch(error=>{if(!status&&!busy){status={error:error.message};renderStatus();}});}
- renderStatus();renderResults();for(const [id,open]of openDetails){const el=document.getElementById(id);if(el)el.open=open;}
+ renderStatus();refreshPricing();for(const [id,open]of openDetails){const el=document.getElementById(id);if(el)el.open=open;}
 }
 
-subscribe(change=>{
- if(!change.prices)return;
+function refreshPricing(){
  const host=document.getElementById('enhance-content');if(!host)return;
- const priced=previewPrices();
- for(const key of ['shardPrice','scrollPrice','basePrice'])if(state.priceModes[key]==='global'){const el=host.querySelector(`[data-enhance-field="${key}"]`);if(el)el.value=priced[key]??'';}
+ const priced=previewPrices(),free=pagePriceSettings('enhance').values.materials==='none';
+ for(const key of ['shardPrice','scrollPrice','basePrice']){
+  const input=host.querySelector(`[data-enhance-field="${key}"]`);
+  if(!input)continue;
+  input.disabled=key!=='basePrice'&&free;
+  input.value=priced[key]??'';
+ }
  renderResults();
-});
+}
+subscribe(change=>{if(change.prices||change.market)refreshPricing();});
 
 const enhancementUpdater=registerCharacterUpdates('enhance',{
  busy:()=>busy,revision:()=>JSON.stringify(state),

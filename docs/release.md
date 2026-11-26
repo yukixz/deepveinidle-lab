@@ -50,7 +50,7 @@ pnpm release:verify --evidence .test-artifacts/release/candidate-check --package
 
 认证有效时无需每次登录；Wrangler 明确报告认证失效后，才用 `npx wrangler login --scopes account:read user:read pages:write` 重新授权。既有部署及历史证据保留，旧项目不自动删除或重定向，不同域名配置不自动迁移。
 
-角色脚本版本见[当前状态](status.md#已发布基线)；升级与重新捕获要求、桥接、旧格式处理及捕获失败规则见[导入协议](technical.md#61-角色导入组件与-userscript-协议)，价格存储迁移见[全局物品价格](shared.md#导入策略与存储迁移)。
+角色脚本版本见[当前状态](status.md#已发布基线)；升级与重新捕获要求、桥接、旧格式处理及捕获失败规则见[导入协议](technical.md#61-角色导入组件与-userscript-协议)，价格存储迁移见[全局物品价格](modules/item-prices.md#价格快照与更新)。
 
 ## 发布验证
 

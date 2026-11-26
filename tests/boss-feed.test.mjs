@@ -13,15 +13,15 @@ const priceSnapshot = createPriceSnapshot({
   quotes:parseMarketPrices({
     game:'Deep Vein Idle', generatedAt:new Date().toISOString(), refreshSeconds:60,
     items:{
-      5:{lowestSell:770, sellQty:1_390_000},
+      5:{lowestSell:770, avg7d:770, sellQty:1_390_000},
       1008:{lowestSell:630, highestBuy:420, avg7d:500, sellQty:0},
-      2008:{lowestSell:8500, sellQty:42_000},
+      2008:{lowestSell:8500, avg7d:8500, sellQty:42_000},
       4008:{lowestSell:null},
-      2044:{lowestSell:16_000, sellQty:20},
+      2044:{lowestSell:16_000, avg7d:16_000, sellQty:20},
     },
   }).quotes,
   prices:{
-    5:{price:770},1008:{price:1,locked:true},2008:{price:8500},2044:{price:16_000},3008:{price:0},
+    5:{price:900},1008:{price:1,locked:true},2008:{price:8500},2044:{price:16_000},3008:{price:0,locked:true},
   },
 });
 const character = {
@@ -34,7 +34,7 @@ const compare = (options = {}) => calculateRows({
 });
 const find = (rows, itemId, kind) => rows.find(row => row.itemId === itemId && row.kind === kind);
 
-test('uses configured Lab prices independently of official market quantities', () => {
+test('uses locked prices or seven-day averages independently of market quantities', () => {
   const rows = compare();
   const ore = find(rows,1008,'buy');
   assert.equal(ore.materials[0].unitPrice,1);

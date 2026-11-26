@@ -51,9 +51,9 @@ export function craftingMaterials(job,tier,count){
  return Object.fromEntries(game.recipeInputs(job,tier).map(i=>[i.itemId,safeMultiply(i.qty,count)]));
 }
 const money=v=>{if(!Number.isFinite(v)||v<0||v>Number.MAX_SAFE_INTEGER)throw Error('priceOverflow');return v;};
-export function priceItems(items,prices,{expected=false}={}){
+export function priceItems(items,prices,{expected=false,priceFor=id=>valuationPrice(id,prices)}={}){
  let value=0;const missing=[];
- for(const [id,n]of Object.entries(items)){if(!(expected?Number.isFinite(n)&&n>=0&&n<=Number.MAX_SAFE_INTEGER:validQuantity(n)))throw Error('quantityOverflow');const p=valuationPrice(Number(id),prices);value=money(value+money(n*p.price));if(n>0&&p.fallback)missing.push(Number(id));}
+ for(const [id,n]of Object.entries(items)){if(!(expected?Number.isFinite(n)&&n>=0&&n<=Number.MAX_SAFE_INTEGER:validQuantity(n)))throw Error('quantityOverflow');const p=priceFor(Number(id));value=money(value+money(n*p.price));if(n>0&&p.fallback)missing.push(Number(id));}
  return {value,missing};
 }
 export function craftingPlayer(raw){

@@ -1,3 +1,4 @@
+import {isMonsterValuable} from '../src/item-prices.js';
 import {openMasteryBrowser,masteryBrowserBuild} from './helpers/mastery-browser.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -203,7 +204,7 @@ try{
  await page.locator('[data-mastery-row="maxhit"] [data-mastery-field="target"]').fill('2');assert.equal(await page.locator('#optimizer-start').textContent(),'Cancel calculation');
  await page.click('#optimizer-start');
  await page.click('#optimizer-start');await page.evaluate(async()=>{const service=await import('/src/price-service.js');service.setPrice(6,999);});assert.doesNotMatch(await page.locator('#optimizer-status').innerText(),/Prices changed/);assert.equal(await page.locator('#optimizer-start').textContent(),'Cancel calculation');await page.click('#optimizer-start');
- const missingId=ids.find(id=>!game.isPet(id));
+ const missingId=ids.find(id=>!game.isPet(id)&&!isMonsterValuable(id));
  await page.evaluate(async id=>{const service=await import('/src/price-service.js');service.setPrice(id,null);},missingId);const workers=await page.evaluate(()=>window.optimizerWorkers.length);await page.click('#optimizer-start');assert.match(await page.locator('#optimizer-status').innerText(),/possible rewards/);assert.equal(await page.evaluate(()=>window.optimizerWorkers.length),workers);
  await page.evaluate(async id=>{const service=await import('/src/price-service.js');service.setPrice(id,0);},missingId);await page.click('#optimizer-start');assert.equal(await page.locator('#optimizer-start').textContent(),'Cancel calculation');await page.click('#optimizer-start');
  results.cases.push('invalid budget and missing prices block start; zero price is accepted; target drafts are independent; live prices leave frozen estimates intact');

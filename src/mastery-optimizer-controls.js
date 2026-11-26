@@ -1,3 +1,4 @@
+import {pageIncomeUnitPrice} from './page-prices.js';
 import {game,calculate} from './model.js';
 import {gatheringJobs,gatheringSkills,gatheringStats} from './gathering-model.js';
 import {craftingJobs,craftingSkills,craftingTiers,craftingStats} from './crafting-model.js';
@@ -153,7 +154,7 @@ function start(){
   const totalPoints=draftNumber(mastery?.totalPoints);
   const current=Object.fromEntries(game.masteries.map(m=>[m.id,draftNumber(mastery?.current?.[m.id])]));
   const input=optimizerInput({recipeId,tier,crafting:getCrafting(),objective,allocationMode,totalPoints,current,monsterId,jobId,effort,workMode,combat:getCombat(),gathering:getGathering(),now:Date.now()});
-  const snapshot=getSnapshot(),prices=Object.fromEntries(optimizerIncomeItems(input).map(id=>[id,{price:game.isPet(id)?0:snapshot.getItem(id).price}]));
+  const snapshot=getSnapshot(),page=optimizerPolicy(input.objective).gathering?'gather':'combat',prices=Object.fromEntries(optimizerIncomeItems(input).map(id=>[id,{price:pageIncomeUnitPrice(page,snapshot,id)}]));
   checkOptimizerPrices(input,prices);const request={...input,prices};taskInputKey=currentTaskKey();
   worker=new Worker(new URL('./mastery-optimizer-worker.js',import.meta.url),{type:'module'});const task=generation,activeWorker=worker;
   progress={phase:'search',candidates:0,maxCandidates:optimizerEfforts[effort],simulations:0,workMode:input.workMode};

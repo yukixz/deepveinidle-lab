@@ -7,7 +7,7 @@ import {once} from 'node:events';
 import {chromium} from 'playwright-core';
 import {browserPath,packageFiles,json} from '../scripts/release-common.mjs';
 
-const directory=path.resolve('.test-artifacts/appreciation');
+const directory=path.resolve(process.argv[2]??'.test-artifacts/appreciation');
 await fs.mkdir(directory,{recursive:true});
 const socket=net.createServer();socket.listen(0,'127.0.0.1');await once(socket,'listening');
 const port=socket.address().port;await new Promise(resolve=>socket.close(resolve));
@@ -18,6 +18,7 @@ try{
  const base=`http://127.0.0.1:${port}`;
  browser=await chromium.launch({headless:true,executablePath:await browserPath()});
  const page=await browser.newPage();page.on('pageerror',error=>result.errors.push(error.message));
+ await page.addInitScript(()=>localStorage.setItem('dvi-item-prices-v1',JSON.stringify({version:8,prices:{},quotes:{},preferences:{autoImport:false}})));
  const copyURL='https://cdn.jsdelivr.net/gh/vikiboss/v50@main/static/v50.json';
  let copyMode='success',copyRequests=0;
  const sample='第一行外部文案\n<img src=x onerror=alert(1)>'; 
@@ -36,7 +37,7 @@ try{
  assert.ok((await packageFiles(process.cwd())).some(file=>file.path==='src/assets/appreciation.jpg'));
  for(const width of [1920,1441,1280,390])for(const language of ['zh','en']){
   await page.setViewportSize({width,height:900});await page.selectOption('#language',language);
-  const button=page.locator('#item-prices-open + #appreciation-open');
+  const button=page.locator('header #appreciation-open');
   assert.equal(await button.count(),1);
   assert.equal(await button.getAttribute('class'),'secondary');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${width}/${language}: page overflow`);
@@ -49,8 +50,8 @@ try{
   assert.ok(bounds.y>=0&&bounds.y+bounds.height<=900);
   const dimensions=await image.evaluate(el=>[el.naturalWidth,el.naturalHeight]);
   assert.ok(Math.abs(bounds.width/bounds.height-dimensions[0]/dimensions[1])<0.01);
-  await page.locator('#item-prices-open').evaluate(el=>el.focus());
-  assert.equal(await page.locator('#item-prices-open').evaluate(el=>el===document.activeElement),false);
+  await page.locator('#language').evaluate(el=>el.focus());
+  assert.equal(await page.locator('#language').evaluate(el=>el===document.activeElement),false);
   await page.screenshot({path:path.join(directory,`${language}-${width}.png`)});
   await page.locator('#appreciation-close').click();
   await page.waitForFunction(()=>document.activeElement.id==='appreciation-open');
@@ -59,7 +60,7 @@ try{
   await button.click();await page.mouse.click(1,1);
   await page.waitForFunction(()=>!document.querySelector('#appreciation-dialog').open&&document.activeElement.id==='appreciation-open');
   assert.equal(new URL(page.url()).pathname,'/forecast');
-  await page.locator('#item-prices-open').click();await page.locator('#item-prices-dialog[open]').waitFor();await page.keyboard.press('Escape');
+  await page.locator('#combat-nav').click();await page.locator('#combat-section [data-open-global-prices]').click();await page.locator('#item-prices-dialog[open]').waitFor();await page.keyboard.press('Escape');await page.locator('#forecast-nav').click();
   result.cases.push({width,language,status:'passed'});
  }
  for(const section of ['combat','gather','craft','enhance','mastery','formulas','debug']){

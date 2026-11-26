@@ -52,11 +52,16 @@ try{
  const cost=row('61:0').locator('td').nth(5).locator('details');
  await cost.locator('summary').click();
  const count=await page.evaluate(()=>window.runs.length);
- await page.locator('#item-prices-open').click();
+ await page.locator('#craft-section [data-open-global-prices]').click();
  const priceSearch=page.locator('#price-search');
  await priceSearch.fill('Shrimp');await priceSearch.blur();
  const globalPrice=page.locator('[data-price-value="20"]');
  await globalPrice.fill('1250');await globalPrice.blur();await page.keyboard.press('Escape');
+ assert.match(await cost.locator('.gather-item').innerText(),/1\.25K/);
+ const materialSource=page.locator('[data-page-prices="craft"] [data-page-price="materials"]');
+ await materialSource.selectOption('none');
+ assert.doesNotMatch(await cost.locator('.gather-item').innerText(),/1\.25K/);
+ await materialSource.selectOption('avg7d');
  assert.match(await cost.locator('.gather-item').innerText(),/1\.25K/);
  assert.equal(await cost.getAttribute('open'),'');
  assert.equal(await page.evaluate(()=>window.runs.length),count);
@@ -64,6 +69,15 @@ try{
  const powder=page.locator('.craft-table .gather-item').filter({hasText:'烟花火药'}).first();
  await powder.locator('xpath=ancestor::details').evaluate(e=>e.open=true);
  assert.equal(await powder.locator('[aria-label="缺价"]').count(),1);
+ const missing=page.locator('[data-page-prices="craft"] [data-page-price="missing"]');
+ const powderRuns=await page.evaluate(()=>window.runs.length);
+ for(const mode of ['vendorPrice','none']){
+  await missing.selectOption(mode);
+  assert.equal(await powder.locator('[aria-label="缺价"]').count(),0);
+ }
+ await missing.selectOption('warn');
+ assert.equal(await powder.locator('[aria-label="缺价"]').count(),1);
+ assert.equal(await page.evaluate(()=>window.runs.length),powderRuns);
  await page.evaluate(async()=>{const {setPrice}=await import('/src/price-service.js');setPrice(700,50);});
  await page.reload();await page.selectOption('#craft-group','Fireworks');await ready();
  await powder.locator('xpath=ancestor::details').evaluate(e=>e.open=true);
@@ -80,7 +94,7 @@ try{
  assert.equal(await page.locator('.craft-table tbody tr').evaluateAll(rows=>rows.every(r=>r.cells.length===7)),true);
  results.cases.push('pending and failed seven-column rows; progress preserves exact focused search node');
  await page.locator('#craft-search').fill('no-such-item');assert.equal(await page.locator('.empty-results').getAttribute('colspan'),'7');
- await page.evaluate(()=>window.holdCraft=false);await page.locator('#craft-reset').click();await ready();assert.deepEqual((await saved()).build,craftingDefaults());
+ await page.evaluate(()=>window.holdCraft=false);await page.locator('#craft-reset').click();await ready();assert.deepEqual((await saved()).build,{...craftingDefaults(),simulationHours:build.simulationHours,hotSetting:build.hotSetting});
  await context.close();
  const bad=await browser.newContext();await bad.addInitScript(()=>localStorage.setItem('dvi-crafting-config-v1','broken'));const badPage=await bad.newPage();await badPage.goto(base+'/craft');assert.equal(await badPage.locator('#craft-reset-storage').count(),1);assert.equal(await badPage.evaluate(()=>localStorage.getItem('dvi-crafting-config-v1')),'broken');badPage.once('dialog',d=>d.accept());await badPage.locator('#craft-reset-storage').click();assert.equal(await badPage.locator('#craft-reset-storage').count(),0);await bad.close();
  results.cases.push('empty results, configuration reset, corrupted storage protection and explicit storage reset');assert.deepEqual(results.errors,[]);

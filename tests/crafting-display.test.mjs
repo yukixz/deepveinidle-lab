@@ -10,7 +10,7 @@ import {valuationPrice} from '../src/item-prices.js';
 import {compactNumber,formatOneDecimal,formatUnitPrice} from '../src/number-format.js';
 const source=fs.readFileSync(new URL('../src/crafting-controls.js',import.meta.url),'utf8');
 function page(language='zh'){
- const context=vm.createContext({timingDetails,compactNumber,formatOneDecimal,formatUnitPrice,registerCharacterUpdates:()=>({read(){}}),...model,...store,game,valuationPrice,localStorage:{getItem(){return null;},removeItem(){}},translatedName:n=>n,translatedItemName:id=>String(id),getSnapshot:()=>({getItem:()=>({price:null,vendorPrice:0})}),subscribe(){}});
+ const context=vm.createContext({timingDetails,compactNumber,formatOneDecimal,formatUnitPrice,registerCharacterUpdates:()=>({read(){}}),...model,...store,game,valuationPrice,pageValuation:(page,prices)=>id=>valuationPrice(id,prices),localStorage:{getItem(){return null;},removeItem(){}},translatedName:n=>n,translatedItemName:id=>String(id),getSnapshot:()=>({getItem:()=>({price:null,vendorPrice:0})}),subscribe(){}});
  vm.runInContext(source.replaceAll('import.meta.url',"'http://localhost/'").replace(/^import .*;\n/gm,'').replaceAll('export function','function'),context);
  vm.runInContext(`language=${JSON.stringify(language)};state.levels.cooking=100;[1,2,3,4].forEach(t=>selectedTiers.add(t));`,context);return context;
 }

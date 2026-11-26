@@ -7,21 +7,16 @@ export const marketFamilies=game.marketFamilies;
 export const priceCategories=game.marketCategories.filter(category=>category.key!=='gems');
 export function itemCategory(id){const family=itemFamily(id);return priceCategories.find(category=>category.families.includes(family))?.key??null;}
 // This pricing subset does not change the market categories used by item filters.
-export const monsterValuablesCategory='monsterValuables';
+const monsterValuablesCategory='monsterValuables';
 const monsterValuables=new Set(game.monsters.map(monster=>game.baseItemId(monster.bonus.itemId)).filter(id=>itemCategory(id)==='valuables'));
-export const priceOptionCategories=[...priceCategories,{key:monsterValuablesCategory,zh:'贵重品（怪物的稀有掉落）',en:'Valuables (monster rare drops)'}];
-export function itemPriceCategory(id){return monsterValuables.has(game.baseItemId(id))?monsterValuablesCategory:itemCategory(id);}
-export const marketPriceModes=['avg7d','avg30d','ask','bid'];
+const legacyCategoryKeys=[...priceCategories.map(category=>category.key),monsterValuablesCategory];
+export const isMonsterValuable=id=>monsterValuables.has(game.baseItemId(id));
+const marketPriceModes=['avg7d','avg30d','ask','bid'];
 const priceModes=[...marketPriceModes,'vendor','off'];
 const priceSources=['manual',...marketPriceModes,'vendor'];
 const legacyPriceModes=['ask','bid','vendor','off'];
-export function pricePolicy(preferences,category){
- if(!category||preferences.reviewCategories.includes(category))return {mode:'off',fallback:false};
- const key=preferences.categories[category]===null?'all':category;
- return {mode:preferences.categories[key],fallback:preferences.vendorFallback[key]};
-}
 export function validatePricePreferences(preferences){
- const categories=priceOptionCategories.map(category=>category.key),keys=['all',...categories];
+ const keys=['all',...legacyCategoryKeys];
  if(!record(preferences)||typeof preferences.autoImport!=='boolean'||!record(preferences.categories)||!record(preferences.vendorFallback)||!Array.isArray(preferences.reviewCategories))throw Error('invalidPricePreferences');
  if(Object.keys(preferences.categories).some(key=>!keys.includes(key))||Object.keys(preferences.vendorFallback).some(key=>!keys.includes(key)))throw Error('invalidPricePreferences');
  for(const key of keys){
@@ -29,10 +24,9 @@ export function validatePricePreferences(preferences){
   if(!inherits&&!priceModes.includes(mode)||typeof preferences.vendorFallback[key]!=='boolean')throw Error('invalidPricePreferences');
  }
  const review=preferences.reviewCategories;
- if(new Set(review).size!==review.length||review.some(key=>!categories.includes(key)||preferences.categories[key]!==null))throw Error('invalidPricePreferences');
+ if(new Set(review).size!==review.length||review.some(key=>!legacyCategoryKeys.includes(key)||preferences.categories[key]!==null))throw Error('invalidPricePreferences');
  return structuredClone(preferences);
 }
-export const hasPriceImports=preferences=>priceOptionCategories.some(category=>pricePolicy(preferences,category.key).mode!=='off');
 const record=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const time=v=>Number.isSafeInteger(v)&&v>0&&v<=Date.now()+60000;
 export const validPrice=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=Number.MAX_SAFE_INTEGER;
@@ -41,9 +35,9 @@ export function validItemId(id){
  try{const base=game.baseItemId(id),tier=game.itemTier(id),plus=Math.floor(id/game.encode(0,1));return tier>=0&&tier<=4&&plus<=game.maxEnhancement&&game.encode(game.withRarity(base,tier),plus)===id&&game.item(id).id===id&&(!plus||game.canEnhance(id));}catch{return false;}
 }
 export function itemFamily(id){try{return game.marketFamily(game.baseItemId(id));}catch{return null;}}
-export function priceDefaults(){return {version:7,prices:{},quotes:{},preferences:{autoImport:true,categories:{all:'avg7d',...Object.fromEntries(priceOptionCategories.map(category=>[category.key,category.key===monsterValuablesCategory?'vendor':null]))},vendorFallback:Object.fromEntries(['all',...priceOptionCategories.map(category=>category.key)].map(key=>[key,false])),reviewCategories:[]}};}
+export function priceDefaults(){return {version:7,prices:{},quotes:{},preferences:{autoImport:true,categories:{all:'avg7d',...Object.fromEntries(legacyCategoryKeys.map(key=>[key,key===monsterValuablesCategory?'vendor':null]))},vendorFallback:Object.fromEntries(['all',...legacyCategoryKeys].map(key=>[key,false])),reviewCategories:[]}};}
 export function normalizePriceState(raw){
- if(!record(raw)||![2,3,4,5,6,7].includes(raw.version)||!record(raw.prices)||!record(raw.quotes)||!record(raw.preferences)||!record(raw.preferences.categories))throw Error('invalidPriceStorage');
+ if(!record(raw)||![2,3,4,5,6,7,8].includes(raw.version)||!record(raw.prices)||!record(raw.quotes)||!record(raw.preferences)||raw.version!==8&&!record(raw.preferences.categories))throw Error('invalidPriceStorage');
  const next=priceDefaults();
  for(const [key,p] of Object.entries(raw.prices)){
   if(String(Number(key))!==key||!validItemId(Number(key))||!record(p)||p.price!==null&&!validPrice(p.price)||typeof p.locked!=='boolean'||!priceSources.includes(p.source)||!time(p.updatedAt)||p.quoteCapturedAt!==null&&!time(p.quoteCapturedAt))throw Error('invalidPriceStorage');
@@ -52,6 +46,10 @@ export function normalizePriceState(raw){
  if(raw.version>=3){
   const parsed=validateMarketSnapshot({version:1,quotes:raw.quotes,invalid:0});
   if(parsed.invalid)throw Error('invalidPriceStorage');next.quotes=parsed.quotes;
+ }
+ if(raw.version===8){
+  if(typeof raw.preferences.autoImport!=='boolean')throw Error('invalidPriceStorage');
+  return {...next,version:8,preferences:{autoImport:raw.preferences.autoImport}};
  }
  if(raw.version>=5){
   try{
@@ -73,18 +71,6 @@ export function normalizePriceState(raw){
 }
 // Preference changes revalue only affected categories, from the current cache.
 // Off/review categories keep their existing values, including manually unlocked ones.
-export function applyPricePreferences(state,preferences,now=Date.now()){
- const next=validatePricePreferences(preferences),changed=priceOptionCategories.filter(category=>JSON.stringify(pricePolicy(state.preferences,category.key))!==JSON.stringify(pricePolicy(next,category.key)));
- if(!changed.some(category=>pricePolicy(next,category.key).mode!=='off'))return {...state,preferences:next};
- const prices={...state.prices},selected=priceDefaults().preferences;selected.categories.all='off';selected.categories[monsterValuablesCategory]='off';
- for(const category of changed){
-  const policy=pricePolicy(next,category.key);if(policy.mode==='off')continue;
-  selected.categories[category.key]=policy.mode;selected.vendorFallback[category.key]=policy.fallback;
-  for(const [id,price]of Object.entries(prices))if(!price.locked&&itemPriceCategory(Number(id))===category.key)delete prices[id];
- }
- const result=importItemPrices({...state,prices},{version:1,quotes:state.quotes,invalid:0},selected,now);
- return {...result.state,quotes:state.quotes,preferences:next};
-}
 export function validateMarketSnapshot(raw){
  if(!record(raw)||raw.version!==1||!record(raw.quotes)||!Number.isSafeInteger(raw.invalid)||raw.invalid<0)throw Error('invalidMarketData');
  const quotes={};let invalid=raw.invalid;
@@ -105,13 +91,6 @@ export function validateMarketSnapshot(raw){
  }
  return {quotes,invalid};
 }
-export function mergeQuotes(current,incoming){
- const quotes=structuredClone(current);
- for(const [id,q]of Object.entries(incoming))for(const side of marketPriceModes)if(q[side]&&(!quotes[id]?.[side]||q[side].capturedAt>=quotes[id][side].capturedAt)){
-  quotes[id]??={};quotes[id][side]={...q[side]};
- }
- return quotes;
-}
 export function setItemPrice(state,id,price,now=Date.now()){
  if(!validItemId(id)||price!==null&&!validPrice(price))throw Error('invalidPrice');
  return {...state,prices:{...state.prices,[id]:{price,locked:state.prices[id]?.locked??false,source:'manual',updatedAt:now,quoteCapturedAt:null}}};
@@ -130,38 +109,6 @@ export function clearUnlockedPrices(state){
  const cleared=Object.values(state.prices).filter(p=>!p.locked&&p.price!==null).length;
  return {state:{...state,prices},cleared};
 }
-export function importItemPrices(state,snapshot,preferences=state.preferences,now=Date.now()){
- const parsed=validateMarketSnapshot(snapshot),quotes=mergeQuotes(state.quotes,parsed.quotes),prices={...state.prices};
- const stats={updated:0,vendor:0,locked:0,missing:0,unavailable:0,stale:0,invalid:parsed.invalid};
- // Include configured items with no quote so missing coverage is visible.
- const ids=new Set([...game.items.filter(i=>i.id===game.baseItemId(i.id)&&itemFamily(i.id)&&game.canSell(i.id)).map(i=>i.id),...Object.keys(prices).map(Number),...Object.keys(quotes).map(Number)]);
- for(const id of ids){
-  const category=itemPriceCategory(id),{mode,fallback}=pricePolicy(preferences,category);if(!marketPriceModes.includes(mode)&&mode!=='vendor')continue;const side=mode;
-  const old=prices[id];if(old?.locked){stats.locked++;continue;}
-  if(mode==='vendor'){
-   if(!game.canSell(id)){stats.unavailable++;continue;}
-   const value=game.vendorPrice(id);if(!validPrice(value))throw Error('invalidPrice');
-   if(old?.price===value&&old.source==='vendor'&&old.quoteCapturedAt===null)continue;
-   prices[id]={price:value,locked:false,source:'vendor',updatedAt:now,quoteCapturedAt:null};stats.updated++;stats.vendor++;continue;
-  }
-  // Import only this read's observations, never silently reuse a cached old side.
-  const q=parsed.quotes[id]?.[side];if(!q){stats.missing++;continue;}
-  if(q.invalid){stats.invalid++;continue;}
-  if(q.capturedAt<(quotes[id]?.[side]?.capturedAt??0)||old?.quoteCapturedAt&&q.capturedAt<old.quoteCapturedAt){stats.stale++;continue;}
-  let value=q.value,source=side;
-  if(value===null&&!fallback){stats.missing++;continue;}
-  if(fallback){
-   if(game.canSell(id)){
-    const vendor=game.vendorPrice(id);if(!validPrice(vendor))throw Error('invalidPrice');
-    if(value===null||vendor>=value){value=vendor;source='vendor';}
-   }else if(value===null){stats.unavailable++;continue;}
-  }
-  if(!validPrice(value))throw Error('invalidPrice');
-  if(old?.price===value&&old.source===source&&old.quoteCapturedAt===q.capturedAt)continue;
-  prices[id]={price:value,locked:false,source,updatedAt:now,quoteCapturedAt:q.capturedAt};stats.updated++;if(source==='vendor')stats.vendor++;
- }
- return {state:{...state,prices,quotes},stats};
-}
 export function itemPrice(id,prices){return prices.getItem?prices.getItem(Number(id)).price:prices[id]?.price??null;}
 export function valuationPrice(id,prices={}){
  id=Number(id);if(game.isPet(id))return {price:0,fallback:false};
@@ -169,28 +116,28 @@ export function valuationPrice(id,prices={}){
  const vendor=prices.getItem?prices.getItem(id).vendorPrice:game.canSell(id)?game.vendorPrice(id):null;
  return {price:price??vendor??0,fallback:price===null};
 }
-export function valueItems(items,prices={}){
+export function valueItems(items,prices={},priceFor=id=>valuationPrice(id,prices)){
  let partial=0;const missing=[];
  for(const [key,qty]of Object.entries(items)){
   if(!Number.isFinite(qty)||qty<0)throw Error('invalidDropQuantity');if(!qty)continue;
-  const id=Number(key),{price,fallback}=valuationPrice(id,prices);
+  const id=Number(key),{price,fallback}=priceFor(id);
   if(fallback)missing.push(id);partial+=qty*price;
  }
  if(!Number.isFinite(partial)||partial>Number.MAX_SAFE_INTEGER)throw Error('priceOverflow');
  return {value:partial,partial,missing};
 }
-export function valueRewards(result,prices={}){
+export function valueRewards(result,prices={},priceFor){
  if(!result)return result;
- const normal=valueItems(result.normalItems,prices),rare=valueItems(result.rareItems,prices);
+ const normal=valueItems(result.normalItems,prices,priceFor),rare=valueItems(result.rareItems,prices,priceFor);
  const totalIncome=normal.value===null||rare.value===null?null:result.coins+normal.value+rare.value;
  if(totalIncome!==null&&(!Number.isFinite(totalIncome)||totalIncome>Number.MAX_SAFE_INTEGER))throw Error('priceOverflow');
  return {...result,normalValue:normal.value,rareValue:rare.value,totalIncome,normalMissingPrices:normal.missing,rareMissingPrices:rare.missing,missingPrices:[...normal.missing,...rare.missing]};
 }
 
-export function valueCombatRewards(result,prices={}){
- const valued=valueRewards(result,prices);if(!valued)return valued;
- const food=valueItems(result.foodItems??{},prices);
- const potions=valueItems(result.potionItems??{},prices);
+export function valueCombatRewards(result,prices={},valuation){
+ const valued=valueRewards(result,prices,valuation?.rewards);if(!valued)return valued;
+ const food=valueItems(result.foodItems??{},prices,valuation?.consumables);
+ const potions=valueItems(result.potionItems??{},prices,valuation?.consumables);
  const consumableCost=food.value+potions.value;
  if(!Number.isFinite(consumableCost)||consumableCost>Number.MAX_SAFE_INTEGER)throw Error('priceOverflow');
  const profit=valued.totalIncome-consumableCost;

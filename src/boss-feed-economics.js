@@ -1,4 +1,5 @@
 import {validItemId} from './item-prices.js';
+import {selectedUnitPrice} from './page-prices.js';
 
 const known = value => Number.isFinite(value) && value >= 0;
 
@@ -12,7 +13,7 @@ export function quote(priceSnapshot, itemId) {
   const row = priceSnapshot && validItemId(itemId) ? priceSnapshot.getItem(itemId) : null;
   const noSellOrders = row?.market.status.sellPrice === 'noOrders';
   return {
-    unitPrice: row?.price ?? null,
+    unitPrice: row ? selectedUnitPrice(priceSnapshot,itemId,'avg7d') : null,
     sellQty: known(row?.sellQuantity) ? row.sellQuantity : noSellOrders ? 0 : null,
   };
 }

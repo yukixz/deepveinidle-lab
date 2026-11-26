@@ -71,10 +71,10 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 @media(max-width:740px){.hot-current{align-items:flex-start;padding:18px;flex-direction:column;gap:14px}.hot-countdown{flex-direction:row;align-items:center;gap:14px}.forecast-filters{grid-template-columns:minmax(0,1fr);gap:18px;padding:18px}.forecast-filters fieldset:last-child{text-align:left}.forecast-filters fieldset:last-child legend{margin-left:0}.forecast-filters fieldset:last-child .forecast-options{justify-content:flex-start}.forecast-schedule td,.forecast-schedule th{padding:12px 10px;font-size:11px}.forecast-schedule td:first-child,.forecast-schedule th:first-child{padding-left:18px}.hot-current h2 span{display:block;margin:8px 0 0}}
 
 /* Other settings share one label/control layout. */
-:is(#other-settings,#simulation-settings)>label{display:grid;grid-template-columns:minmax(0,1fr) 120px;align-items:center;gap:10px;margin:9px 0;font-size:12px;color:#b8c8ca}
-:is(#other-settings,#simulation-settings)>label>span{min-width:0;overflow-wrap:anywhere}
-:is(#other-settings,#simulation-settings)>label>input[type="number"],:is(#other-settings,#simulation-settings)>label>select{width:120px;font-size:11px}
-:is(#other-settings,#simulation-settings)>label>input[type="checkbox"]{justify-self:end;margin:0}
+:is(#other-settings,#simulation-settings,#gather-simulation,#craft-settings)>label{display:grid;grid-template-columns:minmax(0,1fr) 120px;align-items:center;gap:10px;margin:9px 0;font-size:12px;color:#b8c8ca}
+:is(#other-settings,#simulation-settings,#gather-simulation,#craft-settings)>label>span{min-width:0;overflow-wrap:anywhere}
+:is(#other-settings,#simulation-settings,#gather-simulation,#craft-settings)>label>input[type="number"],:is(#other-settings,#simulation-settings,#gather-simulation,#craft-settings)>label>select{width:120px;font-size:11px}
+:is(#other-settings,#simulation-settings,#gather-simulation,#craft-settings)>label>input[type="checkbox"]{justify-self:end;margin:0}
 
 .enemies th:not(:first-child),.enemies td:not(:first-child){text-align:right}
 .enemies .reward-detail>div{text-align:left}
@@ -170,20 +170,15 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 /* Shared item prices */
 .item-prices-dialog{width:min(1100px,calc(100vw - 32px));max-height:90vh;box-sizing:border-box;background:#17252b;color:#dbe4e5;border:1px solid var(--line);border-radius:10px;padding:22px;overflow:auto}
 .item-prices-dialog::backdrop{background:#0009}
-.price-heading,.price-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.price-heading{justify-content:space-between}.price-heading h2{margin:0}.price-import{margin:15px 0}.price-import .price-categories{margin:0}.price-categories{margin:14px 0}.price-categories table{min-width:0;width:auto;max-width:100%}.price-categories th,.price-categories td{padding:5px 8px}.price-categories :is(th,td):first-child{max-width:160px;white-space:normal;overflow-wrap:anywhere}.price-categories td:last-child{white-space:normal}.price-filters select,.price-filters input{font-size:11px}.price-list small{display:block;font-size:11px;color:var(--muted);font-weight:normal;margin-top:4px}.price-filters{display:grid;grid-template-columns:1fr 2fr 1fr 1fr 1fr;gap:10px;margin:14px 0}.price-filters label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#a1b1b5}.price-filters input,.price-filters select{width:100%;min-width:0;box-sizing:border-box}.price-list{max-height:65vh;margin-top:12px}.price-list table{min-width:740px}.price-list th{background:#122127;padding-top:8px;padding-bottom:8px}.price-list input[type=number]{width:135px}.price-list td{vertical-align:middle;padding-top:5px;padding-bottom:5px}.price-list input[type=number]{padding:5px 8px;min-height:30px}.price-list td:nth-child(2) small{display:inline;margin-left:8px}.price-list td:nth-child(3) small{display:inline;margin-left:8px}.price-list td input[type=checkbox]{margin:0}.item-prices-dialog .check{margin:8px 0}.item-prices-dialog input[type=checkbox]{width:18px;height:18px}.price-actions .secondary{padding:8px 12px;min-height:40px}.price-list td:first-child{width:24px}.price-list td small{max-width:190px}.item-prices-dialog #price-status{display:block;min-width:0;margin:0;white-space:normal;overflow-wrap:anywhere}.header-right{flex-wrap:wrap}
-@media(max-width:650px){.item-prices-dialog{width:calc(100vw - 12px);max-height:calc(100dvh - 12px);padding:14px}.price-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.price-filters label:nth-child(2){grid-column:1/-1;grid-row:1}.price-list{max-height:70vh}.header-right :is(#item-prices-open,#appreciation-open){font-size:12px;padding:6px}.price-categories th,.price-categories td{padding:5px 7px}.price-categories :is(th,td):first-child{width:64px;max-width:64px}}
+.price-heading,.price-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.price-heading{justify-content:space-between}.price-heading h2{margin:0}.price-sync{display:grid;gap:6px;margin:15px 0}.price-filters select,.price-filters input{font-size:11px}.price-list small{display:block;font-size:11px;color:var(--muted);font-weight:normal;margin-top:4px}.price-filters{display:grid;grid-template-columns:1fr 2fr 1fr 1fr 1fr;gap:10px;margin:14px 0}.price-filters label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#a1b1b5}.price-filters input,.price-filters select{width:100%;min-width:0;box-sizing:border-box}.price-list{max-height:65vh;margin-top:12px}.price-list table{min-width:740px}.price-list th{background:#122127;padding-top:8px;padding-bottom:8px}.price-list input[type=number]{width:135px}.price-list td{vertical-align:middle;padding-top:5px;padding-bottom:5px}.price-list input[type=number]{padding:5px 8px;min-height:30px}.price-list td:nth-child(2) small{display:inline;margin-left:8px}.price-list td:nth-child(3) small{display:inline;margin-left:8px}.price-list td input[type=checkbox]{margin:0}.item-prices-dialog .check{margin:8px 0}.item-prices-dialog input[type=checkbox]{width:18px;height:18px}.price-actions .secondary{padding:8px 12px;min-height:40px}.price-list td:first-child{width:24px}.price-list td small{max-width:190px}.item-prices-dialog #price-status{display:block;min-width:0;margin:0;white-space:normal;overflow-wrap:anywhere}.header-right{flex-wrap:wrap}
+@media(max-width:650px){.item-prices-dialog{width:calc(100vw - 12px);max-height:calc(100dvh - 12px);padding:14px}.price-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.price-filters label:nth-child(2){grid-column:1/-1;grid-row:1}.price-list{max-height:70vh}.header-right #appreciation-open{font-size:12px;padding:6px}}
 
-.item-prices-dialog .secondary,#item-prices-open,#appreciation-open{width:auto;margin:0}.price-heading .secondary{flex-shrink:0}.price-actions{font-size:12px}.price-actions a.secondary{text-decoration:none;display:inline-flex;align-items:center;border:1px solid #3a4c53;border-radius:6px;background:#18272d}.price-actions a.secondary:hover{border-color:var(--gold);color:#fff}.price-actions a.secondary:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.item-prices-dialog .secondary,#appreciation-open{width:auto;margin:0}.price-heading .secondary{flex-shrink:0}.price-actions{font-size:12px}.price-actions a.secondary{text-decoration:none;display:inline-flex;align-items:center;border:1px solid #3a4c53;border-radius:6px;background:#18272d}.price-actions a.secondary:hover{border-color:var(--gold);color:#fff}.price-actions a.secondary:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 
 .item-prices-dialog .price-market-warning,.item-prices-dialog .price-filter-prompt{color:var(--gold);font-weight:650}
 .price-auto-notice{position:fixed;top:16px;right:16px;z-index:20;max-width:min(420px,calc(100vw - 32px));padding:14px 16px;background:#122127;border:1px solid var(--gold);border-radius:8px;box-shadow:0 6px 24px #0006;color:var(--gold);font-size:13px;line-height:1.6;overflow-wrap:anywhere;cursor:pointer}.price-auto-notice:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-.price-category-settings{display:grid;align-items:center;grid-template-columns:repeat(8,max-content);gap:6px 12px}.item-prices-dialog .price-category-settings .check{display:inline-flex;align-items:center;gap:5px;margin:0;line-height:1.5;white-space:nowrap;cursor:pointer}.item-prices-dialog .price-category-settings input{flex:none;width:14px;height:14px;min-height:0;margin:0;padding:0;accent-color:#80c5b0}.price-category-settings .price-options{display:grid;grid-column:span 7;grid-template-columns:subgrid;align-items:center;gap:inherit}.price-category-settings .price-option-placeholder{visibility:hidden;padding-left:19px}.price-category-settings .check:has(input:disabled){opacity:.5;cursor:default}
-.item-prices-dialog #price-status:empty{display:none}.price-import-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}.item-prices-dialog .price-import-options .check{min-width:0;margin:0}.item-prices-dialog #price-import-reset{flex:none;width:auto;min-height:30px;padding:5px 10px}
-@media(max-width:800px){.price-category-settings{grid-template-columns:repeat(2,max-content);grid-template-rows:repeat(4,max-content)}.price-category-settings .price-options{grid-column:1/-1;grid-row:1/span 4;grid-template-rows:subgrid}.price-category-settings .price-fallback{grid-column:2;grid-row:4}}
-@media(max-width:650px){.price-category-settings{gap:5px 10px;grid-template-columns:repeat(2,minmax(0,1fr))}.item-prices-dialog .price-category-settings .check{min-width:0;white-space:normal;overflow-wrap:anywhere}.item-prices-dialog .price-category-settings .check,.price-import-options .check{font-size:10px}.price-import-options{gap:8px}.item-prices-dialog #price-import-reset{font-size:10px;padding:5px 7px}}
+.item-prices-dialog #price-status:empty{display:none}.price-import-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}.item-prices-dialog .price-import-options .check{min-width:0;margin:0}
 
-#item-prices-open{display:inline-flex;align-items:center;justify-content:center;gap:6px}
-#item-prices-open .price-settings-icon{font-size:15px;line-height:1}
 
 .price-list.table-scroll th{position:static;top:auto;left:auto}.price-list td input[type=checkbox]{min-height:0}
 
@@ -353,6 +348,7 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .boss-row-detail dd{margin:2px 0 0;font-size:12px;white-space:normal;font-variant-numeric:tabular-nums}
 .boss-comparison-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px}
 #boss-feed-box-basis{color:var(--teal);font-size:11px;white-space:nowrap}
+#boss-feed-price-settings{width:auto;margin:0 0 0 auto}
 .boss-filters{display:grid;gap:10px;padding-top:5px}
 .boss-filter-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-width:0}
 .boss-filter-row .check{margin:0}
@@ -382,3 +378,19 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .boss-detail-notes{grid-column:1/-1}
 .boss-row-detail .boss-materials{min-width:0}
 .boss-row-detail .boss-materials :is(th,td){padding:5px;position:static;white-space:normal}
+.config-column{display:flex;flex-direction:column;align-items:stretch;gap:16px;min-width:0}
+.simulation-config h2{font-size:18px}
+.simulation-prices{margin-top:14px}
+.simulation-prices .panel-heading{gap:8px;flex-wrap:wrap}
+.simulation-prices h3{font-size:13px;margin:0}
+.simulation-prices .secondary{width:auto;margin:0}
+
+.configuration-disclosure{position:relative;min-width:0}
+.configuration-disclosure>summary{display:flex;align-items:baseline;gap:7px;cursor:pointer;list-style:none}
+.configuration-disclosure>summary::-webkit-details-marker{display:none}
+.configuration-disclosure>summary::before{content:"";display:inline-block;width:0;height:0;border-block:4px solid transparent;border-inline-start:5px solid currentColor;flex:none}
+.configuration-disclosure[open]>summary::before{transform:rotate(90deg)}
+.configuration-disclosure>summary :is(h1,h2){margin:0}
+.configuration-disclosure[open]>summary{margin-bottom:12px}
+.configuration-disclosure[open]:has(>summary+.text-button)>summary{padding-inline-end:96px}
+.configuration-disclosure>summary+.text-button{position:absolute;inset-block-start:0;inset-inline-end:0}

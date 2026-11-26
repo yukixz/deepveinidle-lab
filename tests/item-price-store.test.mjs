@@ -10,16 +10,16 @@ async function withStore(storage,run){
  try{await run(await import(`../src/item-price-store.js?test=${++sequence}`));}
  finally{if(old)Object.defineProperty(globalThis,'localStorage',old);else delete globalThis.localStorage;}
 }
-test('price store round trip restores zero prices, locks and preferences',async()=>{
+test('price store round trip migrates legacy preferences and restores zero prices and locks',async()=>{
  const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
  const state=setItemPrice(priceDefaults(),1,0);state.prices[1].locked=true;state.preferences.categories.resources='bid';
  await withStore(storage,store=>store.updatePrices(state));
- await withStore(storage,store=>assert.deepEqual(store.priceState(),state));
+ await withStore(storage,store=>assert.deepEqual(store.priceState(),{...state,version:8,preferences:{autoImport:true}}));
 });
 test('invalid saved price data remains untouched until an explicit update',async()=>{
  let writes=0;
  await withStore({getItem:()=>'{"version":9}',setItem:()=>writes++},store=>{
-  assert.deepEqual(store.priceState(),priceDefaults());assert.equal(store.priceSaveError(),'invalidPriceStorage');assert.equal(writes,0);
+  assert.deepEqual(store.priceState(),{version:8,prices:{},quotes:{},preferences:{autoImport:true}});assert.equal(store.priceSaveError(),'invalidPriceStorage');assert.equal(writes,0);
  });
 });
 test('failed save exposes an error while notifying consumers of the usable memory state',async()=>{
@@ -34,8 +34,8 @@ test('published v2 migrates prices, locks and preferences, discarding game quote
  state.prices[2]={price:99,locked:false,source:'bid',updatedAt:Date.now(),quoteCapturedAt:Date.now()};state.quotes={2:{bid:{value:99,capturedAt:Date.now()}}};state.preferences.categories.ore='ask';
  const saved=JSON.stringify(state);let writes=0,latest;
  await withStore({getItem:()=>saved,setItem:(key,value)=>{writes++;latest=JSON.parse(value);}},store=>{
-  const current=store.priceState();assert.equal(writes,0);assert.equal(store.priceSaveError(),null);assert.equal(current.version,7);assert.deepEqual(current.quotes,{});assert.equal(current.prices[1].price,0);assert.equal(current.prices[1].locked,true);assert.equal(current.prices[2].price,99);assert.equal(current.prices[2].source,'bid');assert.equal(current.prices[2].quoteCapturedAt,null);assert.equal(current.preferences.categories.resources,null);
-  store.updatePrices(current);assert.equal(writes,1);assert.equal(latest.version,7);
+  const current=store.priceState();assert.equal(writes,0);assert.equal(store.priceSaveError(),null);assert.equal(current.version,8);assert.deepEqual(current.quotes,{});assert.equal(current.prices[1].price,0);assert.equal(current.prices[1].locked,true);assert.equal(current.prices[2].price,99);assert.equal(current.prices[2].source,'bid');assert.equal(current.prices[2].quoteCapturedAt,null);assert.deepEqual(current.preferences,{autoImport:true});
+  store.updatePrices(current);assert.equal(writes,1);assert.equal(latest.version,8);
  });
 });
 
@@ -67,7 +67,7 @@ test('market refresh rejects a full snapshot older than current quotes without w
  });}finally{globalThis.fetch=oldFetch;}
 });
 
-test('automatic import respects the five-minute boundary across reloads using seven-day averages and current locks',async()=>{
+test('automatic import respects the five-minute boundary across reloads while refreshing quotes and preserving locks',async()=>{
  const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
  const oldFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;return {ok:true,json:async()=>({game:'Deep Vein Idle',generatedAt:new Date().toISOString(),refreshSeconds:60,items:{1:{lowestSell:90,highestBuy:20,avg7d:30,avg30d:25},2:{lowestSell:80,highestBuy:10,avg7d:40,avg30d:35}}})};};
@@ -77,7 +77,7 @@ test('automatic import respects the five-minute boundary across reloads using se
    const state=setItemPrice(priceDefaults(),1,77);state.prices[1].locked=true;store.updatePrices(state);
    const first=store.importAutomaticPrices(at),duplicate=store.importAutomaticPrices(at);
    assert.equal(await duplicate,null);await first;
-   assert.equal(requests,1);assert.equal(store.priceState().prices[1].price,77);assert.equal(store.priceState().prices[2].price,40);
+   assert.equal(requests,1);assert.equal(store.priceState().prices[1].price,77);assert.equal(store.priceState().prices[2],undefined);assert.equal(store.priceState().quotes[2].avg7d.value,40);
   });
   await withStore(storage,async store=>{
    assert.equal(await store.importAutomaticPrices(at),null);assert.equal(requests,1);
@@ -98,10 +98,10 @@ test('automatic failure is not retried within five minutes, while manual import 
  }finally{globalThis.fetch=oldFetch;}
 });
 
-test('automatic import skips disabled categories and protects unreadable or invalid storage',async()=>{
+test('automatic import skips when disabled and protects unreadable or invalid storage',async()=>{
  const oldFetch=globalThis.fetch;let requests=0;globalThis.fetch=async()=>{requests++;throw Error('unexpected');};
  try{
-  const state=priceDefaults();for(const key of Object.keys(state.preferences.categories))state.preferences.categories[key]='off';
+  const state=priceDefaults();state.preferences.autoImport=false;
   const values=new Map([['dvi-item-prices-v1',JSON.stringify(state)]]);
   await withStore({getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)},async store=>assert.equal(await store.importAutomaticPrices(),null));
   let writes=0;
@@ -116,7 +116,7 @@ test('automatic import reports price saving failure after receiving valid quotes
  const oldFetch=globalThis.fetch;
  globalThis.fetch=async()=>({ok:true,json:async()=>({game:'Deep Vein Idle',generatedAt:new Date().toISOString(),refreshSeconds:60,items:{1:{lowestSell:90,highestBuy:20,avg7d:30,avg30d:25}}})});
  try{await withStore({getItem:()=>null,setItem:key=>{if(key==='dvi-item-prices-v1')throw Error('quota');}},async store=>{
-  await assert.rejects(store.importAutomaticPrices(),/priceSaveFailed/);assert.equal(store.priceState().prices[1].price,30);
+  await assert.rejects(store.importAutomaticPrices(),/priceSaveFailed/);assert.equal(store.priceState().prices[1],undefined);assert.equal(store.priceState().quotes[1].avg7d.value,30);
  });}finally{globalThis.fetch=oldFetch;}
 });
 

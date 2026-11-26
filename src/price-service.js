@@ -1,5 +1,5 @@
-import {priceState,priceSaveError,updatePrices,subscribePrices,refreshMarketPrices,importAutomaticPrices,setPricePreferences} from './item-price-store.js';
-import {priceDefaults,setItemPrice,lockItemPrices,clearUnlockedPrices} from './item-prices.js';
+import {priceState,priceSaveError,updatePrices,subscribePrices,refreshMarketPrices,importAutomaticPrices,setAutoUpdate} from './item-price-store.js';
+import {setItemPrice,lockItemPrices,clearUnlockedPrices} from './item-prices.js';
 import {createPriceSnapshot,priceProtocolVersion} from './price-protocol.js';
 export {priceProtocolVersion};
 export const getSaveError=priceSaveError;
@@ -19,8 +19,6 @@ export function subscribe(listener){listeners.add(listener);return ()=>listeners
 export function setPrice(id,value){updatePrices(lockItemPrices(setItemPrice(priceState(),id,value),[id],true).state);}
 export function setLocked(ids,locked){const result=lockItemPrices(priceState(),ids,locked);updatePrices(result.state);return result.changed;}
 export function clearPrices(){const result=clearUnlockedPrices(priceState());updatePrices(result.state);return result.cleared;}
-export function getPreferences(){return structuredClone(priceState().preferences);}
-export function setPreferences(preferences){setPricePreferences(preferences);}
-export function resetPreferences(){setPreferences(priceDefaults().preferences);}
-export function importPrices(preferences=getPreferences()){return refreshMarketPrices(preferences).then(({stats})=>({stats}));}
-export async function importAutomatically(){const result=await importAutomaticPrices();return result?{stats:result.stats}:null;}
+export {setAutoUpdate};
+export function importPrices(){return refreshMarketPrices();}
+export function importAutomatically(){return importAutomaticPrices();}
