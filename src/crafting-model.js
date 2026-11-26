@@ -1,6 +1,6 @@
 import * as game from './upstream.js';
 import {createScenario} from './simulation.js';
-import {normalizeManual} from './manual-settings.js';
+import {DEFAULT_HOT_SETTING,normalizeManual} from './manual-settings.js';
 import {readGuild} from './guild.js';
 import {slotItems,gatheringGear,workEquipmentSlots} from './gathering-model.js';
 import {importWorkConfig} from './work-import.js';
@@ -25,7 +25,7 @@ const integer=(v,min,max)=>Number.isFinite(Number(v))?Math.min(max,Math.max(min,
 export function craftingDefaults(){return {
  simulationHours:24,skill:'cooking',levels:Object.fromEntries(craftingSkills.map(k=>[k,1])),gear:Object.fromEntries(craftingSlots.map(k=>[k,{id:0,tier:0,plus:0}])),
  brews:Object.fromEntries(craftingPotions.map(p=>[p.kind,-1])),house:Object.fromEntries(craftingRooms.map(r=>[r.id,0])),masteries:Object.fromEntries(craftingMasteries.map(m=>[m.id,0])),
- perks:Object.fromEntries(craftingPerks.map(p=>[p.id,0])),guild:null,guildXp:0,weeklyXp:0,ironman:false,blessing:false,homeBank:0,hotSetting:'game',
+ perks:Object.fromEntries(craftingPerks.map(p=>[p.id,0])),guild:null,guildXp:0,weeklyXp:0,ironman:false,blessing:false,homeBank:0,hotSetting:DEFAULT_HOT_SETTING,
 };}
 export function normalizeCrafting(raw){
  const s=craftingDefaults();if(!raw||typeof raw!=='object')return s;
@@ -75,4 +75,4 @@ export function craftingStats(raw){
  xpBonus:game.combine(game.workXpMultiplier(p,false,s.skill),game.masteryMultiplier(p.masteries,'xp'),1+s.weeklyXp/100)-1,
  moveSpeed:Math.round(game.mountSpeed(p)*(1+.2*game.brewScale(p,'swift'))*(1+s.masteries.move*.005))/1000,capacity:game.packCapacity(p)};
 }
-export function importCrafting(current,snapshot){return importWorkConfig(current,snapshot,{skills:craftingSkills,slots:craftingSlots,potions:craftingPotions,rooms:craftingRooms,masteries:craftingMasteries,perks:craftingPerks,normalize:normalizeCrafting,gear:gatheringGear,reset:{homeBank:0,hotSetting:'game'}});}
+export function importCrafting(current,snapshot){return importWorkConfig(current,snapshot,{skills:craftingSkills,slots:craftingSlots,potions:craftingPotions,rooms:craftingRooms,masteries:craftingMasteries,perks:craftingPerks,normalize:normalizeCrafting,gear:gatheringGear,reset:{homeBank:0,hotSetting:DEFAULT_HOT_SETTING}});}

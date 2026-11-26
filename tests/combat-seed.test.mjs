@@ -10,30 +10,30 @@ import {randomSimulationSeed} from '../src/simulation-seed.js';
 import {nativeDay} from './native-day.mjs';
 
 test('runtime seeds reach the original context without changing hot defaults or saved configuration',()=>{
- const state=preset('ranged'),before=JSON.stringify(state),windows=createScenario(state).context.windows;
+ const now=Date.UTC(2026,9,19),state=preset('ranged'),before=JSON.stringify(state),windows=createScenario(state,null,{now}).context.windows;
  for(const seed of [0,1,0x80000000,0xffffffff]){
-  const scenario=createScenario(state,game.monsters[0],{seed});
+  const scenario=createScenario(state,game.monsters[0],{seed,now});
   assert.equal(scenario.context.seed,seed);
   assert.equal(scenario.player.id,1);
   assert.equal(scenario.context.secretAt(1000000),0);
   assert.deepEqual(scenario.context.windows,windows);
  }
- assert.equal(state.manual.hotSetting,'game');
- assert.equal(createScenario(state).context.seed,0);
+ assert.equal(state.manual.hotSetting,'current');
+ assert.equal(createScenario(state,null,{now}).context.seed,0);
  assert.equal(JSON.stringify(state),before);
- for(const seed of [-1,0x100000000,.5,NaN,'1',null])assert.throws(()=>createScenario(state,null,{seed}),/Invalid simulation seed/);
+ for(const seed of [-1,0x100000000,.5,NaN,'1',null])assert.throws(()=>createScenario(state,null,{seed,now}),/Invalid simulation seed/);
  assert.ok(Number.isInteger(randomSimulationSeed()));
 });
 
 test('specified seeds reproduce full combat results, agree with upstream, and vary the sampled outcome',()=>{
- const state=preset('ranged');state.manual.simulationHours=1;
+ const now=Date.UTC(2026,9,19),state=preset('ranged');state.manual.simulationHours=1;
  const monster=game.monsters[0],zone=game.world.zones.find(z=>z.monsterId===monster.id);
  const outcomes=[];
  for(const seed of [0,123456789,0xffffffff]){
-  const actual=simulateMonster(state,monster,{seed});
+  const actual=simulateMonster(state,monster,{seed,now});
   assert.equal(actual.seed,seed);
-  assert.deepEqual(actual,simulateMonster(state,monster,{seed,now:Date.UTC(2026,9,19)}));
-  const {player,context,durationTicks}=createScenario(state,monster,{seed});
+  assert.deepEqual(actual,simulateMonster(state,monster,{seed,now}));
+  const {player,context,durationTicks}=createScenario(state,monster,{seed,now});
   const expected=nativeDay(player,context,p=>game.startFight(p,context,zone.id),durationTicks);
   assert.deepEqual(actual.bySkill,expected.bySkill);
   assert.equal(actual.elapsedTicks,expected.ticks);

@@ -89,7 +89,7 @@ test('gathering scope, normalization, tools and independent skill settings',()=>
  assert.equal(s.jobSelection,'all');assert.equal('siteSelection' in s,false);assert.equal(s.levels.mining,85);assert.equal(s.levels.fishing,40);assert.equal(s.perks.quick,10);
  const p=gatheringPlayer(s).player;assert.equal(p.equipment.rod,game.encode(game.withRarity(89,4),10));assert.equal(p.skills.fishing,game.levelXp(40));assert.equal(p.eatAt,0);assert.deepEqual(p.bank,{});
  assert.ok(gatheringStats(s).toolBonus>0);assert.equal(gatheringStats(s).capacity,28);
- assert.equal(normalizeGathering({...d,simulationHours:0,hotSetting:'bad'}).hotSetting,'game');
+ assert.equal(normalizeGathering({...d,simulationHours:0,hotSetting:'bad'}).hotSetting,'current');
 });
 
 for(const skill of gatheringSkills)test(`${skill}: adapter matches independent original offline reports, upgrades and banking`,()=>{

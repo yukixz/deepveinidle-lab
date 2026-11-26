@@ -1,6 +1,6 @@
 import {importWorkConfig} from './work-import.js';
 import * as game from './upstream.js';
-import {normalizeManual} from './manual-settings.js';
+import {DEFAULT_HOT_SETTING,normalizeManual} from './manual-settings.js';
 import {createScenario} from './simulation.js';
 import {readGuild} from './guild.js';
 import {restoreSkillMasteries} from './character-masteries.js';
@@ -25,7 +25,7 @@ export function gatheringDefaults(){return {
  brews:Object.fromEntries(gatheringPotions.map(p=>[p.kind,-1])),
  house:Object.fromEntries(gatheringRooms.map(r=>[r.id,0])),masteries:Object.fromEntries(gatheringMasteries.map(m=>[m.id,0])),
  perks:Object.fromEntries(gatheringPerks.map(p=>[p.id,0])),guild:null,guildXp:0,weeklyXp:0,worldRarity:0,blessing:false,ironman:false,homeBank:0,discardGathered:false,
- jobSelection:'all',simulationHours:24,customSimulation:false,hotSetting:'game',vendorValues:true,valuationMode:'custom',
+ jobSelection:'all',simulationHours:24,customSimulation:false,hotSetting:DEFAULT_HOT_SETTING,vendorValues:true,valuationMode:'custom',
 };}
 export function normalizeGathering(raw,{wholeHours=true}={}){
  const s=gatheringDefaults();if(!raw||typeof raw!=='object')return s;
@@ -72,5 +72,5 @@ export function gatheringStats(raw){const {state:s,player:p}=gatheringPlayer(raw
 }
 export function gatheringJobStats(raw,job){const {player:p}=gatheringPlayer(raw),chance=game.workChance(job,p);return {chance,seconds:game.tickMs/1000/chance,caught:game.caughtChance(job,p)};}
 export function importGathering(current,snapshot){
- return importWorkConfig(current,snapshot,{skills:gatheringSkills,slots:gatheringSlots,potions:gatheringPotions,rooms:gatheringRooms,masteries:gatheringMasteries,perks:gatheringPerks,normalize:normalizeGathering,gear:gatheringGear,reset:{jobSelection:'all',customSimulation:false,hotSetting:'game',vendorValues:true,valuationMode:'custom',discardGathered:false}});
+ return importWorkConfig(current,snapshot,{skills:gatheringSkills,slots:gatheringSlots,potions:gatheringPotions,rooms:gatheringRooms,masteries:gatheringMasteries,perks:gatheringPerks,normalize:normalizeGathering,gear:gatheringGear,reset:{jobSelection:'all',customSimulation:false,hotSetting:DEFAULT_HOT_SETTING,vendorValues:true,valuationMode:'custom',discardGathered:false}});
 }

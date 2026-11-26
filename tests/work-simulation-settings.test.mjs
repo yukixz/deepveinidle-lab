@@ -11,6 +11,9 @@ for(const [name,defaults,normalize,importConfig,player] of [
  ['craft',craftingDefaults,normalizeCrafting,importCrafting,craftingPlayer],
 ]){
  test(`${name}: integer hour migration, defaults, limits, round trip and import retention`,()=>{
+  assert.equal(defaults().hotSetting,'current');
+  assert.equal(normalize({}).hotSetting,'current');
+  for(const hotSetting of ['game','off'])assert.equal(normalize({hotSetting}).hotSetting,hotSetting);
   const max=Math.floor(MAX_SIMULATION_MINUTES/60);
   for(const [input,expected]of [[undefined,24],['bad',24],[NaN,24],[0,1],[-4,1],[.5,1],[1.49,1],[1.5,2],[48,48],[max+10,max]]){
    const state=normalize({...defaults(),simulationHours:input,customSimulation:true});
@@ -18,7 +21,11 @@ for(const [name,defaults,normalize,importConfig,player] of [
    assert.equal(normalize(JSON.parse(JSON.stringify(state))).simulationHours,expected);
   }
   const snapshot={version:2,capturedAt:Date.now(),player:player(defaults()).player,worldBuffsVersion:1,worldTick:100,worldBuffs:[]};
-  for(const hours of [1,2,48])assert.equal(importConfig({...defaults(),simulationHours:hours},snapshot).state.simulationHours,hours);
+  for(const hours of [1,2,48]){
+   const result=importConfig({...defaults(),hotSetting:'off',simulationHours:hours},snapshot).state;
+   assert.equal(result.simulationHours,hours);
+   assert.equal(result.hotSetting,'current');
+  }
  });
 }
 test('craft: selected window controls actual ticks, while finite-route simulation stays independent',()=>{

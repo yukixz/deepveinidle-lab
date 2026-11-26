@@ -15,13 +15,13 @@ import {nativeDay} from './native-day.mjs';
 
 test('gathering seeded results reproduce and match original offline reports in all four skills',()=>{
  for(const skill of gathering.gatheringSkills){
-  const state=gathering.gatheringDefaults();state.skill=skill;state.simulationHours=1/60;
+  const now=Date.UTC(2026,9,19),state=gathering.gatheringDefaults();state.skill=skill;state.simulationHours=1/60;
   const before=JSON.stringify(state),job=gathering.gatheringJobs.find(j=>j.skill===skill),site=gathering.selectedGatheringSites(state,job)[0];
   const outcomes=[];
   for(const seed of [123456789,0xffffffff]){
-   const scenario=createGatheringScenario(state,job,site,{seed});assert.equal(scenario.context.seed,seed);
-   const r=simulateGatheringSite(state,job,site,{seed});assert.equal(r.seed,seed);
-   assert.deepEqual(r,simulateGatheringSite(state,job,site,{seed,now:Date.UTC(2026,9,19)}));
+   const scenario=createGatheringScenario(state,job,site,{seed,now});assert.equal(scenario.context.seed,seed);
+   const r=simulateGatheringSite(state,job,site,{seed,now});assert.equal(r.seed,seed);
+   assert.deepEqual(r,simulateGatheringSite(state,job,site,{seed,now}));
    const native=nativeDay(scenario.player,scenario.context,p=>game.startWork(p,scenario.context,site.id,job.id,'bank',null),scenario.durationTicks);
    assert.equal(r.xp,native.bySkill[skill]);
    const items=r.sampleItems;
@@ -29,7 +29,7 @@ test('gathering seeded results reproduce and match original offline reports in a
    const {seed:ignored,...outcome}=r;outcomes.push(outcome);
   }
   assert.notDeepEqual(outcomes[0],outcomes[1],skill);
-  assert.equal(JSON.stringify(state),before);assert.equal(state.hotSetting,'game');
+  assert.equal(JSON.stringify(state),before);assert.equal(state.hotSetting,'current');
  }
 });
 
@@ -41,17 +41,17 @@ test('nearest gathering site uses the round seed',()=>{
 
 test('crafting seeds reproduce all five skills and match original finite-route reports',()=>{
  for(const skill of crafting.craftingSkills){
-  const state=crafting.craftingDefaults();state.skill=skill;
+  const now=Date.UTC(2026,9,19),state=crafting.craftingDefaults();state.skill=skill;
   const job=crafting.craftingJobs.find(j=>j.skill===skill),outcomes=[];
   for(const seed of [123456789,0xffffffff]){
-   const scenario=createCraftingScenario(state,job,0,100,{seed}),xp=scenario.player.skills[skill];assert.equal(scenario.context.seed,seed);
-   const report=questlessOffline(game,scenario.player,scenario.context,START_TICK+60000),r=simulateCrafting(state,job,0,100,{seed});
+   const scenario=createCraftingScenario(state,job,0,100,{seed,now}),xp=scenario.player.skills[skill];assert.equal(scenario.context.seed,seed);
+   const report=questlessOffline(game,scenario.player,scenario.context,START_TICK+60000),r=simulateCrafting(state,job,0,100,{seed,now});
    assert.equal(r.seed,seed);assert.equal(r.complete,true);assert.equal(r.xp,scenario.player.skills[skill]-xp);
    assert.deepEqual(r.sampleItems,report.itemsGained);assert.equal(r.burnt,report.burnt);assert.equal(r.deposits,report.deposits);
-   assert.deepEqual(r,simulateCrafting(state,job,0,100,{seed,now:Date.UTC(2026,9,19)}));
+   assert.deepEqual(r,simulateCrafting(state,job,0,100,{seed,now}));
    const {seed:ignored,...outcome}=r;outcomes.push(outcome);
   }
-  assert.notDeepEqual(outcomes[0],outcomes[1],skill);assert.equal(state.hotSetting,'game');
+  assert.notDeepEqual(outcomes[0],outcomes[1],skill);assert.equal(state.hotSetting,'current');
  }
  const state=crafting.craftingDefaults(),job=crafting.craftingJobs.find(j=>j.skill==='cooking');
  assert.equal(simulateCraftingWindow(state,job,0,{seed:42}).seed,42);

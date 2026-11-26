@@ -17,7 +17,8 @@ import {renderCrafting,getCraftingConfig} from './crafting-controls.js';
 import {selectedEnemies} from './enemy-selection.js';
 import {renderDebug} from './debug-controls.js';
 import {renderEnhancement,applyEnhancementImport} from './enhancement-controls.js';
-import {combatHot,combatHotMarkup,rewardAmount} from './combat-hot.js';
+import {simulationHotMarkup,rewardAmount} from './combat-hot.js';
+import {bindSimulationHours} from './simulation-hours-control.js';
 import {randomSimulationSeed} from './simulation-seed.js';
 import {renderForecast,updateForecast} from './forecast-controls.js';
 import {importCharacter,importWarningText} from './character-import.js';
@@ -130,7 +131,11 @@ $('#app').innerHTML=`<header><div class="brand"><a class="brand-home" href="/"><
  document.querySelectorAll('[data-path^="levels."]').forEach(el=>{const k=el.dataset.path.split('.')[1];el.closest('label').classList.toggle('active-skill',k===state.style);});
  $('#language').onchange=e=>{language=e.target.value;save();render();};$('#reset').onclick=()=>{if(confirm(t('resetConfirm'))){combatUpdater.reset();state=selectStyle(defaults(),'melee');save();render();}};
  document.querySelectorAll('[data-preset]').forEach(el=>el.onclick=()=>{const style=el.dataset.preset;if(state.style!==style)combatUpdater.invalidate();state=selectStyle(state,style);save();render();});
- document.querySelectorAll('[data-path]').forEach(el=>{
+ bindSimulationHours($('[data-path="manual.simulationHours"]'),hours=>{
+  if(state.manual.simulationHours===hours)return;
+  state.manual.simulationHours=hours;save();renderResults();
+ });
+ document.querySelectorAll('[data-path]:not([data-simulation-hours])').forEach(el=>{
   const update=()=>{const keys=el.dataset.path.split('.');let obj=state;for(const key of keys.slice(0,-1))obj=obj[key];obj[keys.at(-1)]=keys[0]==='masteries'?masteryRank(keys[1],el.value):el.type==='checkbox'?el.checked:['manual.hotSetting','manual.enemySelection'].includes(el.dataset.path)?el.value:Number(el.value);state=normalize(state);if(keys[0]==='masteries')rememberSkillMasteries(state,state.style);save();};
   if(el.type==='number'){
    el.oninput=()=>{if(el.value===''||!Number.isFinite(el.valueAsNumber))return;update();renderResults();const slot=el.dataset.path.split('.')[1];if(el.dataset.path.startsWith('gear.')){const v=state.gear[slot],g=gearDetails(slot,game.encode(game.withRarity(v.id,v.tier),v.plus));el.closest('.gear-row').querySelector('.gear-stats').textContent=gearSummary(slot,g);}};
@@ -210,7 +215,7 @@ function scheduleSimulation(force=false){
   },180);
  }
  const hotPanel=$('#combat-hot-schedule');
- if(hotPanel){try{hotPanel.innerHTML=state.manual.hotSetting==='current'?combatHotMarkup(combatHot(simulationNow,state.manual.simulationHours),language,esc):state.manual.hotSetting==='game'?'<p class="micro">'+(language==='zh'?'沿用游戏内置预测的热门加成规则。':'Uses the hot bonus rules of the in-game predictor.')+'</p>':'';}catch(error){hotPanel.textContent=(language==='zh'?'预测失败：':'Forecast failed: ')+(error.message==='invalidTime'?(language==='zh'?'设备时间无效或早于游戏时间纪元。':'Invalid device time or time before the game epoch.'):String(error.message||error));}}
+ if(hotPanel){try{hotPanel.innerHTML=state.manual.hotSetting==='current'?simulationHotMarkup(simulationNow,state.manual.simulationHours,language,esc):state.manual.hotSetting==='game'?'<p class="micro">'+(language==='zh'?'沿用游戏内置预测的热门加成规则。':'Uses the hot bonus rules of the in-game predictor.')+'</p>':'';}catch(error){hotPanel.textContent=(language==='zh'?'预测失败：':'Forecast failed: ')+(error.message==='invalidTime'?(language==='zh'?'设备时间无效或早于游戏时间纪元。':'Invalid device time or time before the game epoch.'):String(error.message||error));}}
  const status=$('#simulation-status');
  if(status){
   status.hidden=!simulationError&&hourly.size===monsters.length;

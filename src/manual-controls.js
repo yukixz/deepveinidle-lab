@@ -1,6 +1,6 @@
 import {monsterKey} from './enemy-selection.js';
 import {combatPerks} from './combat-options.js';
-import {MAX_SIMULATION_MINUTES} from './manual-settings.js';
+import {simulationHoursField} from './simulation-hours-control.js';
 import {game} from './model.js';
 export function manualControls(state,{language,number,options,esc,name}){
  const m=state.manual,zh=language==='zh',label=(a,b)=>zh?a:b;
@@ -15,7 +15,7 @@ export function manualControls(state,{language,number,options,esc,name}){
  const supply=`<label class="potion"><span>${label('模拟初始仓库位置','Starting depot location')}</span><select data-path="homeBank">${options([[0,label('自动','Automatic')],...game.world.banks.map(b=>[b.id,`${label('仓库','Depot')} ${b.id} (${b.x}, ${b.y})`])],state.homeBank)}</select></label>`+check('ironman','铁人模式（不掉落坐骑）','Ironman (no mount drops)');
  const other=perks+section('other-settings','其它','Other',guild+supply);
 
- const duration=number('manual.simulationHours',label('模拟时间（小时）','Simulation time (hours)'),m.simulationHours,Math.floor(MAX_SIMULATION_MINUTES/60),1,1);
+ const duration=simulationHoursField(language,m.simulationHours,'data-path','manual.simulationHours');
  const enemies=select('enemySelection','敌人','Enemies',[["all",label('全部','All')],...[...game.monsters].sort((a,b)=>b.level-a.level).map(m=>[monsterKey(m),name(m.name)])]);
  const simulation=section('simulation-settings','模拟配置','Simulation settings',enemies+duration+hot);
  return {food,other,simulation};

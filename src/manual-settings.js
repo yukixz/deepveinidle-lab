@@ -1,11 +1,17 @@
 import {normalizeEnemySelection} from './enemy-selection.js';
 import * as game from './upstream.js';
 export const MAX_SIMULATION_MINUTES=Math.floor(8.64e15/60000/2);
+export const MAX_SIMULATION_HOURS=Math.floor(MAX_SIMULATION_MINUTES/60);
+export const DEFAULT_HOT_SETTING='current';
+const DEFAULT_SIMULATION_HOURS=24;
 const limit=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.min(max,Math.max(min,Number(v))):fallback;
+export function normalizeSimulationHours(hours){
+ return Math.round(limit(hours??DEFAULT_SIMULATION_HOURS,1,MAX_SIMULATION_HOURS,DEFAULT_SIMULATION_HOURS));
+}
 const int=(v,min,max,fallback)=>Math.floor(limit(v,min,max,fallback));
 export function manualDefaults(){return {
  perks:Object.fromEntries(game.perks.filter(p=>p.id!=='meals').map(p=>[p.id,0])),
- enemySelection:'all',guildXp:0,weeklyXp:0,worldRarity:0,simulationHours:24,vendorValues:true,valuationMode:'custom',customSimulation:false,hotSetting:'game',blessing:false,
+ enemySelection:'all',guildXp:0,weeklyXp:0,worldRarity:0,simulationHours:DEFAULT_SIMULATION_HOURS,vendorValues:true,valuationMode:'custom',customSimulation:false,hotSetting:DEFAULT_HOT_SETTING,blessing:false,
  foodRule:0,foodMaxTier:4,foodPerTrip:-1,
  bankSlotsBought:0,unlimitedBank:true,ironman:false,coins:0,
  allGear:false,playerId:1,seed:0,currentTick:game.predictionStartTick,
@@ -18,14 +24,14 @@ export function normalizeManual(raw={}, {wholeHours=true,fractionalWorldXp=false
  for(const key of ['coins'])s[key]=int(raw[key]??s[key],0,Number.MAX_SAFE_INTEGER,s[key]);
  for(const key of ['foodRule','foodMaxTier'])s[key]=int(raw[key]??s[key],0,key==='foodMaxTier'?4:3,s[key]);
  s.foodPerTrip=[5,10,20,-2,-1].includes(Number(raw.foodPerTrip))?Number(raw.foodPerTrip):-1;
- s.hotSetting=['game','current','off'].includes(raw.hotSetting)?raw.hotSetting:typeof raw.hotForecast==='boolean'?(raw.hotForecast?'current':'off'):'game';
+ s.hotSetting=['game','current','off'].includes(raw.hotSetting)?raw.hotSetting:typeof raw.hotForecast==='boolean'?(raw.hotForecast?'current':'off'):s.hotSetting;
  s.valuationMode='custom';
  s.vendorValues=true;
  s.enemySelection=normalizeEnemySelection(raw.enemySelection);
  s.weeklyXp=(fractionalWorldXp?limit:int)(raw.weeklyXp??0,0,1e7,0);
  s.worldRarity=limit(raw.worldRarity??0,0,1e7,0);
  s.simulationHours=wholeHours
-  ?Math.round(limit(raw.simulationHours??s.simulationHours,1,Math.floor(MAX_SIMULATION_MINUTES/60),s.simulationHours))
+  ?normalizeSimulationHours(raw.simulationHours)
   :Math.round(limit(Number(raw.simulationHours??s.simulationHours)*60,1,MAX_SIMULATION_MINUTES,s.simulationHours*60))/60;
  return s;
 }

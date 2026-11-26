@@ -1,18 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {game,preset,normalize,defaults} from '../src/model.js';
-import {DAY_TICKS,combatHot,combatHotWindows,rewardAmount} from '../src/combat-hot.js';
+import {DAY_TICKS,simulationHotMarkup,combatHot,combatHotWindows,rewardAmount} from '../src/combat-hot.js';
 import {epoch,tickTime} from '../src/hot-forecast.js';
 import {manualWindows} from '../src/manual-settings.js';
 import {START_TICK,simulateMonster,createScenario} from '../src/simulation.js';
 import {nativeDay} from './native-day.mjs';
 const now=Date.UTC(2026,9,6,3,17);
-test('hot modes default to game, preserve choices and migrate legacy booleans',()=>{
- assert.equal(defaults().manual.hotSetting,'game');
- assert.equal(normalize({}).manual.hotSetting,'game');
+test('hot modes default to current time, preserve choices and migrate legacy booleans',()=>{
+ assert.equal(defaults().manual.hotSetting,'current');
+ assert.equal(normalize({}).manual.hotSetting,'current');
  for(const hotSetting of ['game','current','off'])assert.equal(normalize({manual:{hotSetting}}).manual.hotSetting,hotSetting);
  for(const [hotForecast,expected]of [[true,'current'],[false,'off']])assert.equal(normalize({manual:{hotForecast}}).manual.hotSetting,expected);
- assert.equal(normalize({manual:{hotMode:2,hotSetting:'invalid'}}).manual.hotSetting,'game');
+ assert.equal(normalize({manual:{hotMode:2,hotSetting:'invalid'}}).manual.hotSetting,'current');
  assert.equal(normalize({manual:{hotSetting:'game',hotForecast:true}}).manual.hotSetting,'game');
 });
 test('forecast includes active combat periods, clips boundaries and fails on invalid time',()=>{
@@ -64,4 +64,12 @@ test('game mode maps native hot rules while current and off select explicit wind
  s.manual.hotSetting='game';s.manual.weeklyXp=20;
  const windows=createScenario(s,m,{now:NaN}).context.windows;
  assert.deepEqual(windows[0],{fromTick:START_TICK,toTick:START_TICK+DAY_TICKS,xpMult:1.2,rarityMult:1});
+});
+
+test('long hot previews cap detail without changing the simulation window',()=>{
+ const now=Date.UTC(2026,10,26);
+ const preview=simulationHotMarkup(now,31*24+24,'en',String);
+ assert.match(preview,/first 31 days/);
+ assert.equal((preview.match(/ · /g)??[]).length,combatHot(now,31*24).entries.length);
+ assert.doesNotMatch(simulationHotMarkup(now,24,'en',String),/first 31 days/);
 });

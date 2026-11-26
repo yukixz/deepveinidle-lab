@@ -71,7 +71,7 @@ test('current-time hot windows are mapped to the crafting skill and change no ma
 test('character import uses shared protocol and retains failures and independent settings',()=>{
  const s=craftingDefaults();const p=craftingPlayer(s).player;p.skills.cooking=game.levelXp(40);p.equipment.pan=game.withRarity(360,2);p.house.range=8;p.houseFurniture.range={cell:0,slot:0};p.brews.elixir=p.lastTick+100;p.brewTier.elixir=2;
  const snapshot={version:2,capturedAt:Date.now(),player:p,worldTick:p.lastTick,worldBuffs:[]},result=importCrafting(s,snapshot);
- assert.equal(result.state.levels.cooking,40);assert.equal(result.state.gear.pan.id,360);assert.equal(result.state.gear.pan.tier,2);assert.equal(result.state.house.range,8);assert.equal(result.state.brews.elixir,2);assert.equal(result.state.hotSetting,'game');assert.equal(result.state.homeBank,0);
+ assert.equal(result.state.levels.cooking,40);assert.equal(result.state.gear.pan.id,360);assert.equal(result.state.gear.pan.tier,2);assert.equal(result.state.house.range,8);assert.equal(result.state.brews.elixir,2);assert.equal(result.state.hotSetting,'current');assert.equal(result.state.homeBank,0);
  delete p.skills.smithing;const partial=importCrafting(result.state,snapshot);assert.ok(partial.warnings.includes('skills.smithing'));assert.equal(partial.state.levels.smithing,result.state.levels.smithing);
  assert.throws(()=>importCrafting(s,{...snapshot,version:1}),/invalidSnapshot/);
 });

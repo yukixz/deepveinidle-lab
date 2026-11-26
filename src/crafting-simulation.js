@@ -2,7 +2,7 @@ import {recordActivityTime} from './activity-timing.js';
 import * as game from './upstream.js';
 import {normalizeCrafting,craftingPlayer,craftingMaterials,recipeKey,validQuantity,safeAdd} from './crafting-model.js';
 import {MAX_SIMULATION_MINUTES,manualWindows} from './manual-settings.js';
-import {simulationTicks,combatHot,combatHotWindows} from './combat-hot.js';
+import {simulationTicks,hotSchedule,combatHotWindows} from './combat-hot.js';
 import {START_TICK,simulationTick} from './simulation.js';
 import {validateSimulationSeed} from './simulation-seed.js';
 
@@ -15,7 +15,7 @@ export function createCraftingScenario(raw,job,tier,count,{now=Date.now(),maxTic
  const {state:s,player:p}=craftingPlayer(raw);
  if(s.levels[job.skill]<job.levelReq)throw Error('levelTooLow');
  const materials=craftingMaterials(job,tier,count),context={...game.createContext(game.world,validateSimulationSeed(seed)),hypothetical:true,windows:manualWindows(START_TICK,START_TICK+maxTicks,s.weeklyXp,s.hotSetting!=='game',job.skill)};
- if(s.hotSetting==='current')context.windows.push(...combatHotWindows(combatHot(now,maxTicks*game.tickMs/3600000,job.skill)));
+ if(s.hotSetting==='current')context.windows.push(...combatHotWindows(hotSchedule(now,maxTicks,job.skill)));
  let prepared;game.predict(p,context,player=>{prepared=player;return false;});
  const routeJobId=job.upgrade?game.upgradeSiteJob(job.upgrade):job.id;
  const siteId=game.nearestWorkSite(context,routeJobId,prepared.x,prepared.y),site=game.world.siteById.get(siteId);
