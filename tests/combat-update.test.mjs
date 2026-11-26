@@ -35,9 +35,9 @@ test('new combat gear supports all qualities, enhancement, prices, translation a
 test('new equipment imports quality and enhancement without warnings, preserving mastery ranks',()=>{
  for(const[id,style,slot]of newGear){
   const s=preset(style);for(const k of Object.keys(s.levels))s.levels[k]=99;
-  const p=createScenario(s).player;p.equipment[slot]=game.encode(game.withRarity(id,4),23);p.masteries.accuracy=13;
+  const p=createScenario(s).player;p.equipment[slot]=game.encode(game.withRarity(id,4),17);p.masteries.accuracy=13;
   const imported=importCharacter(s,{version:2,capturedAt:Date.now(),player:p});
-  assert.deepEqual(imported.state.gear[slot],{id,tier:4,plus:23});
+  assert.deepEqual(imported.state.gear[slot],{id,tier:4,plus:17});
   assert.ok(!imported.warnings.some(w=>w.includes('equipment.')));
   assert.equal(imported.state.masteries.accuracy,13);
   assert.equal(masteryValue('accuracy',13),13);assert.equal(masteryRank('accuracy',13),13);
@@ -76,4 +76,43 @@ test('warehouse meals leave the full selected trip load and all consumed food is
  const monster=game.monsters.find(m=>m.name==='Ice wight'),result=simulateMonster(s,monster,{seed:314});
  const valued=valueCombatRewards(result,{64:{price:7}});
  assert.ok(result.food>0);assert.equal(valued.foodCost,result.food*7);
+});
+
+test('dungeon equipment applies tier caps, set damage and relic progress across storage and import',async()=>{
+ const combat=await import('../src/upstream-combat.js');
+ const state=preset('melee');
+ state.levels.melee=99;
+ state.gear.weapon={id:884,tier:4,plus:50};
+ state.gear.helmet={id:881,tier:4,plus:45};
+ state.gear.amulet={id:904,tier:4,plus:31};
+ state.gear.earring={id:980,tier:4,plus:34};
+ state.gear.body={id:919,tier:4,plus:20,relics:2200};
+ const saved=normalize(JSON.parse(JSON.stringify(state)));
+ assert.deepEqual(['weapon','helmet','earring'].map(slot=>saved.gear[slot].plus),[40,40,25]);
+ assert.equal(saved.gear.amulet.plus,25);
+ assert.equal(saved.gear.body.relics,2200);
+ const {player,stats}=calculate(saved);
+ assert.equal(combat.itemRelics(player.equipment.body),2200);
+ const withoutRelics=calculate({...saved,gear:{...saved.gear,body:{...saved.gear.body,relics:0}}});
+ assert.ok(stats.armour>withoutRelics.stats.armour);
+ // Helmet has no strength. Replacing it with an empty slot isolates the tier-three set bonus.
+ const withoutSet=calculate({...saved,gear:{...saved.gear,helmet:{id:0,tier:0,plus:0}}});
+ assert.equal(stats.hit,Math.ceil(withoutSet.stats.hit*1.095));
+ const scenario=createScenario(saved,combat.monsters[0]);
+ assert.deepEqual(scenario.player.equipment,player.equipment);
+ const imported=importCharacter(defaults(),{version:2,capturedAt:Date.now(),player:scenario.player});
+ assert.deepEqual(imported.state.gear,saved.gear);
+ assert.ok(!imported.warnings.some(w=>w.startsWith('equipment:')));
+});
+
+test('weapon damage floor uses base ticks without changing the planned mean',async()=>{
+ const {rollPlayerDamage}=await import('../src/upstream-combat.js');
+ for(const [speed,floor]of [[2,20],[3,20],[4,26],[5,33],[6,40],[7,40]]){
+  assert.equal(rollPlayerDamage(0,100,speed),floor);
+  assert.equal(rollPlayerDamage(1-Number.EPSILON,100,speed),100);
+  const samples=10000;
+  let total=0;
+  for(let i=0;i<samples;i++)total+=rollPlayerDamage((i+.5)/samples,100,speed);
+  assert.ok(Math.abs(total/samples-50.5)<.01);
+ }
 });

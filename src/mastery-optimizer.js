@@ -1,4 +1,5 @@
 import * as game from './upstream.js';
+import {maxHit as combatMaxHit,maxHp as combatMaxHp} from './upstream-combat.js';
 import {normalize,makePlayer} from './model.js';
 import {simulateMonster} from './simulation.js';
 import {normalizeGathering,gatheringJobs} from './gathering-model.js';
@@ -34,7 +35,7 @@ export function combatIncomeGeneration(combat,floor){
  const {player}=makePlayer(combat),cache=new Map();
  const value=(r,id,n)=>{
   const ranks={...r,[id]:n},k=id+':'+key(ranks);if(cache.has(k))return cache.get(k);
-  player.masteries=ranks;const v=id==='hp'?game.maxHp(player):game.maxHit(player);cache.set(k,v);return v;
+  player.masteries=ranks;const v=id==='hp'?combatMaxHp(player):combatMaxHit(player);cache.set(k,v);return v;
  };
  const canonicalRank=(r,id,n)=>{
   const target=value(r,id,n);let lo=floor[id],hi=n;

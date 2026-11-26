@@ -1,3 +1,4 @@
+import {item as combatItem} from './upstream-combat.js';
 import {pageIncomeUnitPrice} from './page-prices.js';
 import {game,calculate} from './model.js';
 import {gatheringJobs,gatheringSkills,gatheringStats} from './gathering-model.js';
@@ -80,7 +81,7 @@ function summary(){
  const {state,issues}=calculate(combat);
  const styles={ranged:text('远程','Ranged'),melee:text('近战','Melee'),magic:text('魔法','Magic')};
  const tiers=language==='zh'?['普通','罕见','稀有','史诗','传说']:['Normal','Uncommon','Rare','Epic','Legendary'];
- const gear=Object.values(state.gear).filter(v=>v.id).map(v=>`${tiers[v.tier]} ${name(game.item(v.id).name)} +${v.plus}`).join(' · ');
+ const gear=Object.values(state.gear).filter(v=>v.id).map(v=>`${tiers[v.tier]} ${name(combatItem(v.id).name)} +${v.plus}`).join(' · ');
  const ranks=Object.fromEntries(game.masteries.map(m=>[m.id,draftNumber(mastery?.current?.[m.id])])),total=draftNumber(mastery?.totalPoints);
  const invested=Object.values(ranks).every(n=>Number.isInteger(n)&&n>=0&&n<=game.masteryRankLimit)?game.masteriesTotalCost(ranks):null;
  const available=Number.isSafeInteger(total)&&total>=0&&(allocationMode==='reset'||invested!==null)?total-(allocationMode==='remaining'?invested:0):null;

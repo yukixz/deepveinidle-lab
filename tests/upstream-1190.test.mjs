@@ -1,3 +1,4 @@
+import {startFight as startCombat} from '../src/upstream-combat.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {game,defaults,preset} from '../src/model.js';
@@ -22,7 +23,7 @@ test('all three moved combat zones match native routes with automatic and both f
  for(const id of [9,10,11])for(const homeBank of [0,1,2]){
   const state=preset('ranged');state.homeBank=homeBank;state.manual.simulationHours=1;state.manual.hotSetting='off';
   const monster=game.monsters.find(m=>m.id===id),scenario=createScenario(state,monster,{seed:314});
-  const reference=nativeDay(scenario.player,scenario.context,p=>game.startFight(p,scenario.context,id),6000);
+  const reference=nativeDay(scenario.player,scenario.context,p=>startCombat(p,scenario.context,id),6000);
   const actual=simulateMonster(state,monster,{seed:314});
   assert.deepEqual(actual.bySkill,reference.bySkill,`zone ${id}, depot ${homeBank}`);
   assert.equal(actual.elapsedTicks,reference.ticks);assert.equal(actual.deaths,reference.deaths);

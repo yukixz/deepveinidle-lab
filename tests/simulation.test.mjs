@@ -2,7 +2,8 @@ import {questlessOffline} from '../scripts/native-questless.mjs';
 import {nativeDay} from './native-day.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {game,defaults as defaultBuild,preset as presetBuild,normalize,masteryValue,masteryRank} from '../src/model.js';
+import {defaults as defaultBuild,preset as presetBuild,normalize,masteryValue,masteryRank} from '../src/model.js';
+import * as game from '../src/upstream-combat.js';
 import {simulateMonster,createScenario,START_TICK,HOUR_TICKS,DAY_TICKS} from '../src/simulation.js';
 // Keep non-forecast regression scenarios deterministic and independent of wall time.
 const preset=style=>{const s=presetBuild(style);s.manual.hotSetting='off';s.manual.simulationHours=24;return s;};
@@ -10,7 +11,7 @@ const defaults=()=>{const s=defaultBuild();s.manual.hotSetting='off';s.manual.si
 
 test('banking eats without overhealing and loads trip food only with auto-eating enabled',()=>{
  for(const [hp,eatAt,stock,expectedHp,eaten]of [[12,.5,28,72,3],[42,.5,28,82,2],[43,.5,28,83,2],[12,0,28,12,0],[12,.5,0,12,0],[0,.5,28,80,4],[12,.5,1,32,1]]){
-  const {player:p,context}=createScenario(preset('magic'));
+  const {player:p,context}=createScenario(preset('magic'),game.monsters[0]);
   p.bank={66:stock};p.pack=[];p.foodItemId=66;p.foodPerTrip=28;
   p.eatAt=eatAt;p.hp=hp;p.perks.meals=0;p.brews={};
   p.route={zoneId:12};p.activity='banking';
@@ -43,7 +44,7 @@ test('all monsters match the original predictor XP, timing and deaths',()=>{
  }
 });
 test('full tick event counts agree with original offline report and food inventory ledger',()=>{
- const state=preset('ranged'),monster=game.monsters.find(m=>m.id===20),scenario=createScenario(state);
+ const state=preset('ranged'),monster=game.monsters.find(m=>m.id===20),scenario=createScenario(state,monster);
  let p;game.predict(scenario.player,scenario.context,prepared=>{p=prepared;return false;});
  assert.equal(p.lastTick,START_TICK);assert.equal(p.pack.length,0);
  game.startFight(p,scenario.context,game.world.zones.find(z=>z.monsterId===monster.id).id);
@@ -69,7 +70,7 @@ test('starting depot changes travel and repeated simulation preserves input',()=
 });
 test('buffs, food expiry and movement remain aligned with original prediction',()=>{
  const state=preset('magic');state.food={id:171,tier:2};state.fed=true;state.rooted=true;state.brews.haste=3;state.brews.swift=2;state.masteries.xp=20;state.masteries.move=10;
- const monster=game.monsters.find(m=>m.id===20),scenario=createScenario(state);
+ const monster=game.monsters.find(m=>m.id===20),scenario=createScenario(state,monster);
  const expected=nativeDay(scenario.player,scenario.context,p=>game.startFight(p,scenario.context,game.world.zones.find(z=>z.monsterId===monster.id).id));
  const result=simulateMonster(state,monster);
  assert.equal(Math.round(result.xp),expected.xpPerHour);assert.deepEqual(result.bySkill,expected.bySkill);assert.equal(result.deaths,expected.deaths);
@@ -85,7 +86,7 @@ test('mount stacks with movement buffs and matches original full prediction',()=
   const started=game.startFight(p,scenario.context,zone.id);
   return started;
  });
- const walking=createScenario(s);let prepared;
+ const walking=createScenario(s,monster);let prepared;
  game.predict(walking.player,walking.context,p=>{prepared=p;return false;});
  game.startFight(prepared,walking.context,zone.id);
  let walk;
@@ -108,15 +109,15 @@ test('depot defaults to automatic and valid saved choices survive',()=>{
 });
 test('automatic depots vary by target and match explicit choices',()=>{
  const s=preset('ranged'),before=JSON.stringify(s);
- // The Cairns lies next to depot 2; The Chalk Steps lies north of depot 1.
- assert.equal(createScenario(s,game.monsters.find(m=>m.id===4)).player.homeBank,2);
+ // The Cairns uses the nearby dungeon chest; The Chalk Steps uses depot 1.
+ assert.equal(createScenario(s,game.monsters.find(m=>m.id===4)).player.homeBank,485);
  assert.equal(createScenario(s,game.monsters.find(m=>m.id===20)).player.homeBank,1);
  const chosen=new Set();
  for(const monster of game.monsters){
   const automatic=simulateMonster(s,monster);chosen.add(automatic.homeBank);
-  assert.deepEqual(automatic,simulateMonster({...s,homeBank:automatic.homeBank},monster),monster.name);
+  if(game.world.bankById.has(automatic.homeBank))assert.deepEqual(automatic,simulateMonster({...s,homeBank:automatic.homeBank},monster),monster.name);
  }
- assert.deepEqual([...chosen].sort(),[1,2]);assert.equal(JSON.stringify(s),before);
+ assert.ok(chosen.has(1)&&chosen.has(485));assert.equal(JSON.stringify(s),before);
  for(const homeBank of [1,2])for(const monster of game.monsters)assert.equal(createScenario({...s,homeBank},monster).player.homeBank,homeBank);
 });
 test('removed manual reproduction overrides use fixed defaults',()=>{

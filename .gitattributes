@@ -1,2 +1,3 @@
 # Preserve the exact public bundle, including whitespace inside template strings.
 vendor/game-original.js whitespace=-blank-at-eol
+vendor/game-combat-1225.js whitespace=-blank-at-eol

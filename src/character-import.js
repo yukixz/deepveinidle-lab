@@ -1,6 +1,7 @@
+import * as game from './upstream-combat.js';
 import {readGuild} from './guild.js';
 import {readWorldBuffs,worldBuffWarningText} from './world-buffs.js';
-import {game,defaults,normalize,slots,skills,combatStyles,foods,gearDetails} from './model.js';
+import {defaults,normalize,slots,skills,combatStyles,foods,gearDetails,gearEnhancementLimit,gearRelicLimit,equippedItemId} from './model.js';
 import {combatRooms,combatMasteries,combatPerks,combatPotions} from './combat-options.js';
 import {characterMasteries} from './character-masteries.js';
 const importTypes=[['skills','技能','Skills'],['equipment','装备','Equipment'],['food','食物','Food'],['potions','药水','Potions'],['home','家园','Home'],['masteries','精通','Masteries'],['guild','公会与祝福','Guild & blessing'],['supplies','补给','Supplies'],['perks','特权','Perks']];
@@ -53,21 +54,21 @@ export function importCharacter(current,snapshot){
    if(!record(p.equipment)){warn('equipment');continue;}
    for(const slot of slots){
     const id=p.equipment[slot];
-    if(id===null){
+    if(id===null||(slot==='earring'&&id===undefined)){
      state.gear[slot]={id:0,tier:0,plus:0};applied.add(category);
      if(slot==='weapon')combatSkill='melee';
      continue;
     }
-    const base=int(id)?game.baseItemId(id):0,tier=int(id)?game.itemTier(id):0,plus=int(id)?Math.floor(id/game.encode(0,1)):0;
-    if(!int(id)||!int(tier,0,4)||!int(plus,0,game.maxEnhancement)||gearDetails(slot,id)?.slot!==slot){warn(`equipment.${slot}`);continue;}
-    state.gear[slot]={id:base,tier,plus};applied.add(category);
+    const base=int(id)?game.baseItemId(id):0,tier=int(id)?game.itemTier(id):0,plus=int(id)?game.itemEnhancement(id):0,relics=int(id)?game.itemRelics(id):0;
+    if(!int(id)||!int(tier,0,4)||!int(plus,0,gearEnhancementLimit(base))||!int(relics,0,gearRelicLimit(base))||gearDetails(slot,id)?.slot!==slot){warn(`equipment.${slot}`);continue;}
+    state.gear[slot]=gearRelicLimit(base)?{id:base,tier,plus,relics}:{id:base,tier,plus};applied.add(category);
     if(slot==='weapon'){
      const weapon=game.gear(base);
      combatSkill=weapon?.magic?'magic':weapon?.ranged?'ranged':'melee';
     }
    }
    if(combatSkill)state.style=combatSkill;
-   if(slots.some(slot=>{const g=gearDetails(slot,game.encode(game.withRarity(state.gear[slot].id,state.gear[slot].tier),state.gear[slot].plus));return g?.style&&g.style!==state.style;}))state.manual.allGear=true;
+   if(slots.some(slot=>{const g=gearDetails(slot,equippedItemId(state.gear[slot]));return g?.style&&g.style!==state.style;}))state.manual.allGear=true;
   }
   if(category==='food'){
    const id=p.foodItemId;

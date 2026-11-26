@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {game,defaults,preset,normalize} from '../src/model.js';
+import {defaults,preset,normalize} from '../src/model.js';
+import * as game from '../src/upstream-combat.js';
 import {simulateMonster,createScenario,START_TICK,HOUR_TICKS} from '../src/simulation.js';
 import {combatHot,combatHotWindows,rewardAmount,simulationTicks} from '../src/combat-hot.js';
 import {tickTime} from '../src/hot-forecast.js';

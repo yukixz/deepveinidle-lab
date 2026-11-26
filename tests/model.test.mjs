@@ -28,7 +28,16 @@ test('two-handed excludes off-hand even when the weapon is underlevel',()=>{
  assert.equal(r.player.equipment.weapon,394);assert.equal(r.player.equipment.shield,null);
  assert.equal(createScenario(s).player.equipment.shield,null);
 });
-test('wrong-style armour subtracts accuracy but retains defence',()=>{const s=defaults();s.gear.weapon.id=140;s.gear.helmet.id=120;const r=calculate(s);assert.equal(r.stats.accuracy,15);assert.equal(r.stats.evasion,14);assert.ok(r.issues.some(i=>i.kind==='style'));});
+test('wrong-style armour and off-hand are excluded but retained in the saved build',()=>{
+ const state=defaults();state.gear.weapon={id:140,tier:0,plus:0};
+ const bare=calculate(state);
+ state.gear.helmet={id:120,tier:0,plus:0};state.gear.shield={id:115,tier:0,plus:0};
+ const mixed=calculate(state);
+ assert.deepEqual(mixed.stats,bare.stats);
+ assert.deepEqual(mixed.issues,[{kind:'style',slot:'shield'},{kind:'style',slot:'helmet'}]);
+ assert.equal(mixed.state.gear.helmet.id,120);
+ assert.equal(mixed.state.gear.shield.id,115);
+});
 test('rare crops have both food buffs, healing includes additive bonuses',()=>{const s=defaults();s.food={id:170,tier:1};s.brews.nourish=0;s.meals=10;const r=calculate(s);assert.equal(r.food.healing,6);assert.equal(r.food.fedSeconds,120);assert.equal(r.food.rootSeconds,120);});
 test('all normal targets share max hit; incoming protection reduces max',()=>{const s=preset('ranged');s.rooted=true;const r=calculate(s);assert.ok(r.rows.every(x=>x.max===r.stats.hit));assert.equal(r.rows.find(x=>x.name==='Ice wight').enemyMax,27);});
 test('saved configuration normalization, upper bounds and defaults',()=>{const s=normalize({levels:{melee:9999,magic:-2},gear:{weapon:{id:999,tier:9,plus:-1}},brews:{warrior:'oops'}});assert.equal(s.levels.melee,game.maxLevel);assert.equal(s.levels.magic,1);assert.equal(s.levels.hitpoints,10);assert.equal(s.gear.weapon.id,0);assert.equal(s.brews.warrior,-1);assert.deepEqual(normalize(JSON.parse(JSON.stringify(preset('magic')))),preset('magic'));});
@@ -69,7 +78,7 @@ test('mount upgrades use their own multipliers without changing combat stats',()
   assert.equal(game.mountSpeed(r.player),speed);assert.deepEqual(r.stats,base.stats);assert.deepEqual(r.issues,[]);
  }
  const s=defaults();s.gear.mount={id:328,tier:2,plus:5};assert.equal(game.mountSpeed(calculate(s).player),1473);
- s.gear.mount={id:328,tier:4,plus:100};assert.equal(game.mountSpeed(calculate(s).player),10600);
+ s.gear.mount={id:328,tier:4,plus:100};assert.equal(game.mountSpeed(calculate(s).player),3400);
 });
 test('mount survives storage and style changes, old configurations stay unmounted',async()=>{
  const {selectStyle}=await import('../src/model.js');const s=defaults();s.gear.mount={id:328,tier:3,plus:7};

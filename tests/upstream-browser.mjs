@@ -41,6 +41,35 @@ try{
    if(!localStorage.getItem('dvi-item-prices-v1'))localStorage.setItem('dvi-item-prices-v1',JSON.stringify(prices));
   },{state,craft,key:craftingStorageKey,language,prices});
   await page.goto(base+'/combat');await page.selectOption('#language',language);
+  if(args.includes('--combat-1225')){
+   await page.locator('#equipment-settings').evaluate(el=>el.open=true);
+   const field=path=>page.locator(`[data-path="gear.${path}"]`);
+   await field('weapon.id').selectOption('861');
+   assert.equal(await field('weapon.plus').getAttribute('max'),'40');
+   await field('weapon.plus').fill('40');
+   await field('earring.id').selectOption('980');
+   assert.equal(await field('earring.plus').getAttribute('max'),'25');
+   await field('body.id').selectOption('924');
+   assert.equal(await field('body.relics').getAttribute('max'),'5000');
+   await field('body.relics').fill('2200');
+   await field('body.relics').press('Tab');
+   await page.reload();
+   assert.equal(await field('weapon.plus').inputValue(),'40');
+   assert.equal(await field('earring.id').inputValue(),'980');
+   assert.equal(await field('body.relics').inputValue(),'2200');
+   await page.locator('#equipment-settings').evaluate(el=>el.open=true);
+   await page.locator('[data-path="manual.allGear"]').check();
+   await field('body.id').selectOption('129');
+   await page.locator('#issues').getByText(language==='zh'?/流派不匹配/:/Wrong combat style/).waitFor();
+   assert.equal(await field('body.relics').count(),0);
+   assert.equal(await field('body.plus').getAttribute('max'),'20');
+   await page.waitForFunction(()=>document.querySelector('#rows tr[data-enemy]')&&!document.querySelector('#rows td.hourly-muted'));
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+   await page.screenshot({path:path.join(output,`combat-1225-${language}-${width}.png`),fullPage:true});
+   result.cases.push(`Combat 1.0.1225 ${language} ${width}`);
+   await context.close();
+   continue;
+  }
   if(args.includes('--caps-only')){
    for(const [route,prefix]of [['combat','data-path'],['gather','data-gather-field'],['craft','data-craft-field']]){
     await page.goto(base+'/'+route);
@@ -204,7 +233,7 @@ try{
   const masteryScreenshot=`mastery-${language}-${width}.png`;await page.screenshot({path:path.join(output,masteryScreenshot),fullPage:true});
   result.cases.push({language,width,status:'passed',screenshots:[gatherScreenshot,combatScreenshot,craftScreenshot,fireworksScreenshot,enhanceScreenshot,highScreenshot,masteryScreenshot]});await context.close();
  }
- if(!option('--url')&&!args.includes('--combat-only')&&!args.includes('--caps-only')){
+ if(!option('--url')&&!args.includes('--combat-only')&&!args.includes('--caps-only')&&!args.includes('--combat-1225')){
   const captureBase=await serve('scripts/check-capture-browser.mjs'),page=await browser.newPage();await page.goto(captureBase);
   await page.waitForFunction(()=>{const text=document.querySelector('#results').textContent;return text.includes('"PASS"')||text.includes('"error"');},{},{timeout:20000});
   result.capture=JSON.parse(await page.locator('#results').textContent());assert.ok(result.capture.passed.includes('PASS'),JSON.stringify(result.capture));

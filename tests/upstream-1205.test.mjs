@@ -9,7 +9,7 @@ import {createScenario} from '../src/simulation.js';
 
 test('1205 amulet retains every quality and enhancement without total level warnings',()=>{
  assert.equal(game.equipment.find(g=>g.itemId===357).totalLevel,750);
- for(let tier=0;tier<5;tier++)for(const plus of [0,17,100])for(const level of [1,241]){
+ for(let tier=0;tier<5;tier++)for(const plus of [0,17,20])for(const level of [1,241]){
   const s=defaults();s.gear.amulet={id:357,tier,plus};for(const k of Object.keys(s.levels))s.levels[k]=level;
   const restored=normalize(JSON.parse(JSON.stringify(s))),r=calculate(restored),id=game.encode(game.withRarity(357,tier),plus);
   assert.equal(r.player.equipment.amulet,id);

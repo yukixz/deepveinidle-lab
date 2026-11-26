@@ -1,4 +1,4 @@
-import * as game from './upstream.js';
+import * as game from './upstream-combat.js';
 import {translatedName} from './i18n.js';
 
 export function calculateWorldBosses(player){

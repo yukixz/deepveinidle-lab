@@ -1,8 +1,10 @@
 import {questlessOffline} from '../scripts/native-questless.mjs';
-import {game} from '../src/model.js';
+import * as combatGame from '../src/upstream-combat.js';
+import * as workGame from '../src/upstream.js';
 import {DAY_TICKS,START_TICK} from '../src/simulation.js';
 // Use upstream offline chunk reports independently of the adapter's event totals.
 export function nativeDay(player,context,start,durationTicks=DAY_TICKS){
+ const game=context.world===combatGame.world?combatGame:workGame;
  let p;game.predict(player,context,prepared=>{p=prepared;return false;});
  if(!start(p))throw Error('No route');
  p.offlineCapTicks=durationTicks*2;

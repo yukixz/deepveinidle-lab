@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {parse} from 'acorn';
+import {world as combatWorld} from '../src/upstream-combat.js';
 import {defaults,normalize} from '../src/model.js';
 import {importCharacter} from '../src/character-import.js';
 import {manualControls} from '../src/manual-controls.js';
@@ -64,7 +65,7 @@ test('drop quantities use adaptive precision after daily conversion without chan
  assert.ok(source.includes('lootDetails(r.potionItems??{})'));
 });
 function view(enabled,result,error=false){
- const c=vm.createContext({timingDetails,compactNumber,formatOneDecimal,state:{manual:{vendorValues:enabled}},hourly:new Map(result?[['m',result]]:[]),simulationError:error,valuedResult:r=>r,language:'zh',game:{tickMs:600},t:k=>k,formatRate:(n,metric='count')=>['coins','attempts'].includes(metric)?String(Math.round(n)):n.toFixed(1),esc:String,lootDetails:()=>'<span>item quantity</span>'});
+ const c=vm.createContext({timingDetails,compactNumber,formatOneDecimal,state:{manual:{vendorValues:enabled}},hourly:new Map(result?[['m',result]]:[]),simulationError:error,valuedResult:r=>r,language:'zh',game:{tickMs:600,world:combatWorld},t:k=>k,formatRate:(n,metric='count')=>['coins','attempts'].includes(metric)?String(Math.round(n)):n.toFixed(1),esc:String,lootDetails:()=>'<span>item quantity</span>'});
  vm.runInContext(code,c);return c;
 }
 test('global valuation is canonical and obsolete controls stay absent in both languages',()=>{

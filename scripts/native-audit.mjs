@@ -9,7 +9,8 @@ import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
 import {analyze} from 'eslint-scope';
 import {game,preset} from '../src/model.js';
-import {createScenario,START_TICK} from '../src/simulation.js';
+import * as combatGame from '../src/upstream-combat.js';
+import {createScenario,simulateMonster,START_TICK} from '../src/simulation.js';
 import {gatheringDefaults,gatheringJobs} from '../src/gathering-model.js';
 import {createGatheringScenario,simulateGatheringSite} from '../src/gathering-simulation.js';
 import {craftingDefaults,craftingTiers,craftingJobs,craftingMaterials} from '../src/crafting-model.js';
@@ -17,19 +18,19 @@ import {createCraftingScenario,simulateCrafting} from '../src/crafting-simulatio
 import {enhancementDefaults,enhanceableItems,enhancementSteps} from '../src/enhancement.js';
 import {forecast} from '../src/hot-forecast.js';
 
-const manifest=JSON.parse(fs.readFileSync('vendor/manifest.json'));
-const metadata=manifest.overrides[0]??{...manifest,file:'vendor/game-original.js'};
+async function loadNative(directory,output,manifestPath,snapshotPath,exports){
+const manifest=JSON.parse(fs.readFileSync(manifestPath));
+const metadata={...manifest,file:snapshotPath};
 const source=fs.readFileSync(metadata.file,'utf8');
 assert.equal(createHash('sha256').update(source).digest('hex'),metadata.sha256);
 const declarations=new Map();
 for(const node of parse(source,{ecmaVersion:'latest',sourceType:'module',ranges:true}).body){
- if(node.type==='FunctionDeclaration')declarations.set(node.id.name,{start:node.start,text:source.slice(node.start,node.end)});
+ if(node.type==='FunctionDeclaration'||node.type==='ClassDeclaration')declarations.set(node.id.name,{start:node.start,text:source.slice(node.start,node.end)});
  if(node.type==='VariableDeclaration')for(const d of node.declarations){
   const ids=[];const walk=n=>{if(!n)return;if(n.type==='Identifier')ids.push(n.name);else if(n.type==='ObjectPattern')n.properties.forEach(p=>walk(p.value));else if(n.type==='ArrayPattern')n.elements.forEach(walk);};walk(d.id);
   const entry={start:d.start,text:node.kind+' '+source.slice(d.start,d.end)+';'};ids.forEach(id=>declarations.set(id,entry));
  }
 }
-const exports={"world":"P","monsters":"Pn","predict":"Eg","startFight":"Vp","createContext":"wI","gear":"Ha","armourMultiplier":"oB","masteryMultiplier":"Ma","restock":"bye","offline":"IS","startWork":"Bn","enhanceCost":"Op","enhanceChance":"yb","enhanceXp":"sbe","enhanceTicks":"qi","skillPetChance":"g4","hotSkill":"yv","startUpgrade":"LZ","tick":"nee","killMonster":"Bge","seededFloat":"vs","bonusSalt":"bge","upgradeResult":"_d","upgradeRecipes":"Un"};
 const selected=new Set(),allowed=new Set(['WeakSet','WeakMap','Uint8Array','Uint16Array','Uint32Array','Int16Array','Int32Array','Float64Array','Math','Map','Set','Number','Object','Array','String','Error','Date','Boolean','Infinity','undefined','JSON','RegExp','parseInt','parseFloat']);
 function collect(name){
  const d=declarations.get(name);if(!d)throw Error('Missing native declaration '+name);if(selected.has(d))return;selected.add(d);
@@ -37,19 +38,29 @@ function collect(name){
  for(const dep of new Set(refs))if(declarations.has(dep))collect(dep);else if(!allowed.has(dep))throw Error('Unexpected native dependency '+dep);
 }
 Object.values(exports).forEach(collect);
+ const file=path.join(directory,output);
+ fs.writeFileSync(file,[...selected].sort((a,b)=>a.start-b.start).map(d=>d.text).join('\n')+'\nexport{'+Object.entries(exports).map(([alias,name])=>name+' as '+alias).join(',')+'};');
+ return {engine:await import(pathToFileURL(file)),version:metadata.changelogVersion};
+}
+
+const exports={"world":"P","monsters":"Pn","predict":"Eg","startFight":"Vp","createContext":"wI","gear":"Ha","armourMultiplier":"oB","masteryMultiplier":"Ma","restock":"bye","offline":"IS","startWork":"Bn","enhanceCost":"Op","enhanceChance":"yb","enhanceXp":"sbe","enhanceTicks":"qi","skillPetChance":"g4","hotSkill":"yv","startUpgrade":"LZ","tick":"nee","killMonster":"Bge","seededFloat":"vs","bonusSalt":"bge","upgradeResult":"_d","upgradeRecipes":"Un"};
+const combatExports={
+ world:'X',monsters:'Ll',gear:'as',predict:'fS',offline:'xq',startFight:'Sv',
+ killMonster:'Gzo',seededFloat:'ni',bonusSalt:'czo',maxHit:'el',
+};
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'dvi-native-audit-'));
 try{
- const file=path.join(directory,'native.mjs');
- fs.writeFileSync(file,[...selected].sort((a,b)=>a.start-b.start).map(d=>d.text).join('\n')+'\nexport{'+Object.entries(exports).map(([alias,name])=>name+' as '+alias).join(',')+'};');
- const native=await import(pathToFileURL(file));
+ const {engine:native}=await loadNative(directory,'native.mjs','vendor/manifest.json','vendor/game-original.js',exports);
+ const {engine:nativeCombat,version:combatVersion}=await loadNative(directory,'combat.mjs','vendor/combat-manifest.json','vendor/game-combat-1225.js',combatExports);
+ assert.deepEqual(nativeCombat.world,combatGame.world);assert.deepEqual(nativeCombat.monsters,combatGame.monsters);
  assert.deepEqual(native.world,game.world);assert.deepEqual(native.monsters,game.monsters);
  let tokenCases=0,upgradeEncodingCases=0;
  for(const shrine of [0,20,50])for(const worldRare of [0,.25,10000])for(let seed=0;seed<64;seed++){
   const state=preset('ranged');state.gear.amulet={id:0,tier:0,plus:0};state.brews.hunter=-1;state.manual.blessing=false;state.manual.hotSetting='off';state.manual.worldRarity=worldRare*100;state.house.shrine=shrine;
   const monster={...game.monsters[0],bonus:{...game.monsters[0].bonus,chance:.5}};
   const {player,context}=createScenario(state,monster,{seed});
-  const tick=START_TICK+1,roll=native.seededFloat(seed,context.secretAt,native.bonusSalt,player.id,1,tick),chance=Math.min(1,.5*(1+worldRare+.005*shrine)),events=[];
-  native.killMonster(player,context,monster,tick,events);
+  const tick=START_TICK+1,roll=nativeCombat.seededFloat(seed,context.secretAt,nativeCombat.bonusSalt,player.id,1,tick),chance=Math.min(1,.5*(1+worldRare+.005*shrine)),events=[];
+  nativeCombat.killMonster(player,context,monster,tick,events);
   assert.equal(events.some(e=>e.kind==='bonus'),roll<chance);tokenCases++;
  }
  for(const upgrade of native.upgradeRecipes)for(const from of upgrade.from)for(let tier=0;tier<5;tier++)for(const plus of [0,17,100]){
@@ -58,12 +69,25 @@ try{
  }
  let count=0;
  function compare(state,monster){
-  const {player}=createScenario(state,monster);
-  const localContext=game.createContext(game.world,314),nativeContext=native.createContext(native.world,314);
-  const zone=game.world.zones.find(z=>z.monsterId===monster.id);
-  const actual=game.predict(player,localContext,p=>game.startFight(p,localContext,zone.id));
-  const expected=native.predict(player,nativeContext,p=>native.startFight(p,nativeContext,zone.id));
-  assert.deepEqual(actual,expected,`${state.style}: ${state.gear.weapon.id}: ${monster.name}`);count++;
+  state.manual.simulationHours=1;state.manual.hotSetting='off';
+  const {player,context,durationTicks}=createScenario(state,monster,{seed:314});
+  const nativeContext={...context,world:nativeCombat.world};
+  const zone=nativeCombat.world.zones.find(z=>z.monsterId===monster.id);
+  let prepared;
+  nativeCombat.predict(player,nativeContext,p=>{prepared=p;return false;});
+  assert.ok(nativeCombat.startFight(prepared,nativeContext,zone.id));
+  prepared.offlineCapTicks=durationTicks*2;
+  const expected={kills:0,deaths:0,bySkill:{}};
+  let elapsedTicks=0;
+  do{
+   elapsedTicks+=100;
+   const report=questlessOffline(nativeCombat,prepared,nativeContext,START_TICK+elapsedTicks);
+   expected.kills+=report.kills;expected.deaths+=report.deaths;
+   for(const [skill,{xp}]of Object.entries(report.skills))if(xp)expected.bySkill[skill]=(expected.bySkill[skill]??0)+xp;
+  }while(elapsedTicks<durationTicks&&!expected.deaths&&prepared.route!==null);
+  const actual=simulateMonster(state,monster,{seed:314});
+  assert.deepEqual({kills:actual.kills,deaths:actual.deaths,bySkill:actual.bySkill},expected,`${state.style}: ${state.gear.weapon.id}: ${monster.name}`);
+  assert.equal(actual.elapsedTicks,elapsedTicks);count++;
  }
  for(const style of ['melee','ranged','magic'])for(const monster of game.monsters)compare(preset(style),monster);
  for(const[id,style]of[[394,'melee'],[151,'ranged'],[629,'ranged'],[630,'ranged'],[631,'magic']])for(const tier of [0,4]){
@@ -72,6 +96,12 @@ try{
   if(style==='magic')for(const[slot,id]of[['helmet',632],['body',633],['legs',634],['shield',635]])state.gear[slot]={id,tier,plus:17};
   for(const monster of game.monsters)compare(state,monster);
  }
+ for(const [style,weapon,helmet] of [['melee',884,881],['ranged',889,886],['magic',894,891]]){
+  const state=preset(style);state.gear.weapon={id:weapon,tier:4,plus:40};state.gear.helmet={id:helmet,tier:4,plus:40};state.gear.earring={id:980,tier:4,plus:25};
+  for(const monster of combatGame.monsters)compare(state,monster);
+ }
+ const relicGear=combatGame.encodeRelics(combatGame.encode(combatGame.withRarity(919,4),20),2200);
+ assert.deepEqual(combatGame.gear(relicGear),nativeCombat.gear(relicGear));
  for(const id of [629,630,631,632,633,634,635])for(let tier=0;tier<5;tier++)for(const plus of [0,17,100]){
   const encoded=game.encode(game.withRarity(id,tier),plus);assert.deepEqual(game.gear(encoded),native.gear(encoded));
  }
@@ -140,5 +170,5 @@ try{
  console.log(`Token drops: ${tokenCases} seeded cases matched manual shrine/world probabilities; ${upgradeEncodingCases} upgrade encodings preserved rarity and enhancement.`);
  console.log(`Enhancing: ${enhancementCases} item/rarity/level/mastery/plus cases matched independent native chance, costs and XP; duration and pet chance matched.`);
  console.log(`Other pages: ${gatheringCount} gathering sites, ${craftingCount} ordinary recipe/quality cases, ${upgradeCount} upgrade/quality cases, ${costs} enhancement costs and 49 forecast slots matched independent native code.`);
- console.log(`Native ${metadata.changelogVersion} comparison: ${count}/${count} complete 1-hour predictions matched; world geometry, monsters and 105 new-gear variants matched.`);
+ console.log(`Native ${combatVersion} combat comparison: ${count}/${count} one-hour simulations matched independent offline reports; geometry, monsters and completed/unfinished gear extraction matched.`);
 }finally{fs.rmSync(directory,{recursive:true});}

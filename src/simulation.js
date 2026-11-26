@@ -1,7 +1,9 @@
 import {recordActivityTime} from './activity-timing.js';
 import {DAY_TICKS,simulationTicks,combatHot,combatHotWindows} from './combat-hot.js';
 import {manualWindows} from './manual-settings.js';
-import {game,makePlayer} from './model.js';
+import {makePlayer} from './model.js';
+import * as game from './upstream.js';
+import * as combatGame from './upstream-combat.js';
 import {combatPotions} from './combat-options.js';
 import {validateSimulationSeed} from './simulation-seed.js';
 import {createCombatExpectation} from './combat-expectation.js';
@@ -12,50 +14,61 @@ const add=(obj,key,amount=1)=>{obj[key]=(obj[key]??0)+amount;};
 
 // Synthetic builds have no account quests, including after a daily reset.
 export function simulationTick(player,context,tick,events){
- player.quests.day=game.questDay(tick);player.quests.week=game.questWeek(tick);
- game.tick(player,context,tick,events);
+ const engine=context.world===combatGame.world?combatGame:game;
+ player.quests.day=engine.questDay(tick);player.quests.week=engine.questWeek(tick);
+ engine.tick(player,context,tick,events);
 }
 
 export function createScenario(raw,monster=null,{now=Date.now(),seed=0}={}){
  if(raw?.format)throw Error('Unsupported simulation format');
- const {state,player:p}=makePlayer(raw),zone=monster&&game.world.zones.find(z=>z.monsterId===monster.id);
+ const engine=monster?combatGame:game;
+ const {state,player}=makePlayer(raw,engine);
+ const zone=monster&&engine.world.zones.find(z=>z.monsterId===monster.id);
  if(monster&&!zone)throw Error('No combat zone for monster '+monster.id);
- const target=zone?game.combatTargetTile(zone,state.manual.playerId):game.world.banks[0];
- const bank=state.homeBank?game.world.bankById.get(state.homeBank):game.homeBank({world:game.world},target);
+ const target=zone?engine.combatTargetTile(zone,state.manual.playerId):engine.world.banks[0];
+ const bank=state.homeBank?engine.world.bankById.get(state.homeBank):engine.homeBank({world:engine.world},target);
  if(!bank)throw Error('No starting depot');
  const durationTicks=simulationTicks(state.manual.simulationHours);
- const foodId=game.withRarity(state.food.id,state.food.tier);
- Object.assign(p,{
-  id:state.manual.playerId,x:bank.x,y:bank.y,homeBank:bank.id,skills:{...Object.fromEntries(game.allSkills.map(k=>[k,0])),...p.skills},
+ const foodId=engine.withRarity(state.food.id,state.food.tier);
+ const p=monster?{...engine.createPlayer(state.manual.playerId,'',bank.x,bank.y,0),...player}:player;
+ if(!monster)Object.assign(p,{
+  id:state.manual.playerId,x:bank.x,y:bank.y,
   skillboss:null,skillbossPending:[],spoilsHeld:{},skillbossBurn:{},skillbossFeedTicks:{},skillbossFed:{},masterySkills:{},masteryAway:{},toolSkins:[],toolSkinsOff:[],bossMarks:[],decosOwned:[],attacks:[],houseTrophies:{},houseDecos:{},alchemyLog:{},alchemy:{carry:{}},
-  pack:[],bank:{[foodId]:1e9},overflow:{},bankOrder:[],bankLocked:[],gearSets:[],skillSets:{},route:null,enhance:null,order:null,plots:{},queue:[],tunics:[],guide:{},
+  pack:[],overflow:{},bankOrder:[],bankLocked:[],gearSets:[],skillSets:{},route:null,enhance:null,order:null,plots:{},queue:[],tunics:[],guide:{},
   perks:{quick:0,rest:0,pockets:0,hands:0,...p.perks},housePoints:{},houseCells:[],houseBuild:null,houseUpgrades:{},
   quests:{day:0,week:0,daily:[],weekly:[]},path:null,streak:{},tally:{items:{},monsters:{},coinsEarned:0},collection:{},collections:{},forgeLog:{},achievements:{},titles:[],
-  coins:state.manual.coins,hp:game.maxHp(p),unlimitedBank:state.manual.unlimitedBank,bankSlotsBought:state.manual.bankSlotsBought,offlineCapTicks:durationTicks*2,foodMaxTier:state.manual.foodMaxTier,foodItemId:state.manual.foodRule===0?foodId:state.manual.foodRule===2?-2:null,foodPerTrip:state.manual.foodPerTrip,eatAt:state.eatAt/100,
-  ironman:state.manual.ironman,activity:'idle',pathIndex:0,stride:0,strideSpeed:1000,actionIndex:0,rollIndex:{},foeIndex:null,foeHp:0,foeTicks:0,attemptTicks:0,stunUntil:0,workSiteId:null,workJobId:null,
+  activity:'idle',pathIndex:0,stride:0,strideSpeed:1000,actionIndex:0,rollIndex:{},foeIndex:null,foeHp:0,foeTicks:0,attemptTicks:0,stunUntil:0,workSiteId:null,workJobId:null,
+ });
+ Object.assign(p,{
+  homeBank:bank.id,skills:{...Object.fromEntries(engine.allSkills.map(k=>[k,0])),...p.skills},
+  bank:{[foodId]:1e9},coins:state.manual.coins,hp:engine.maxHp(p),
+  unlimitedBank:state.manual.unlimitedBank,bankSlotsBought:state.manual.bankSlotsBought,
+  offlineCapTicks:durationTicks*2,foodMaxTier:state.manual.foodMaxTier,
+  foodItemId:state.manual.foodRule===0?foodId:state.manual.foodRule===2?-2:null,
+  foodPerTrip:state.manual.foodPerTrip,eatAt:state.eatAt/100,ironman:state.manual.ironman,
  });
  const m=state.manual;
  if(m.foodRule===3)p.eatAt=0;
- const context={...game.createContext(game.world,validateSimulationSeed(seed)),windows:manualWindows(START_TICK,START_TICK+durationTicks,m.weeklyXp,m.hotSetting!=='game','combat',m.worldRarity),hypothetical:true};
+ const context={...engine.createContext(engine.world,validateSimulationSeed(seed)),windows:manualWindows(START_TICK,START_TICK+durationTicks,m.weeklyXp,m.hotSetting!=='game','combat',m.worldRarity),hypothetical:true};
  if(m.hotSetting==='current')context.windows.push(...combatHotWindows(combatHot(now,m.simulationHours)));
  return {player:p,context,durationTicks};
 }
 
-export function dropValue(items){
- return Object.entries(items).reduce((total,[id,qty])=>total+(game.canSell(Number(id))?game.vendorPrice(Number(id))*qty:0),0);
+export function dropValue(items,engine=game){
+ return Object.entries(items).reduce((total,[id,qty])=>total+(engine.canSell(Number(id))?engine.vendorPrice(Number(id))*qty:0),0);
 }
 
 export function simulateMonster(raw,monster,options={}){
  const scenario=createScenario(raw,monster,options),context=scenario.context,durationTicks=scenario.durationTicks;
  let p;
  // Reuse all original predictor initialization without modifying its source.
- game.predict(scenario.player,context,prepared=>{p=prepared;return false;});
+ combatGame.predict(scenario.player,context,prepared=>{p=prepared;return false;});
  p.offlineCapTicks=durationTicks*2;
- const zone=game.world.zones.find(z=>z.monsterId===monster.id);
- if(!zone||!game.startFight(p,context,zone.id))throw Error('No combat route for monster '+monster.id);
+ const zone=combatGame.world.zones.find(z=>z.monsterId===monster.id);
+ if(!zone||!combatGame.startFight(p,context,zone.id))throw Error('No combat route for monster '+monster.id);
  const initialSkills={...p.skills};
- const potionItems=Object.fromEntries(combatPotions.filter(b=>(p.brews[b.kind]??0)>0).map(b=>[game.withRarity(b.itemId,p.brewTier[b.kind]??0),durationTicks/HOUR_TICKS]));
- const result={key:`monster-${monster.id}`,trials:1,durationTicks,homeBank:game.homeBank(context,p)?.id??null,kills:0,attacks:0,xp:0,coins:0,normal:0,rare:0,food:0,deaths:0,bySkill:{},normalItems:{},rareItems:{},foodItems:{},potionItems:{},elapsedTicks:0,movingTicks:0,restocks:0,endedEarly:false};
+ const potionItems=Object.fromEntries(combatPotions.filter(b=>(p.brews[b.kind]??0)>0).map(b=>[combatGame.withRarity(b.itemId,p.brewTier[b.kind]??0),durationTicks/HOUR_TICKS]));
+ const result={key:`monster-${monster.id}`,trials:1,durationTicks,homeBank:combatGame.homeBank(context,p)?.id??null,kills:0,attacks:0,xp:0,coins:0,normal:0,rare:0,food:0,deaths:0,bySkill:{},normalItems:{},rareItems:{},foodItems:{},potionItems:{},elapsedTicks:0,movingTicks:0,restocks:0,endedEarly:false};
  const expectation=createCombatExpectation(monster);
  result.seed=context.seed;
  for(let tick=1;tick<=durationTicks;tick++){
@@ -71,14 +84,14 @@ export function simulateMonster(raw,monster,options={}){
    if(e.kind==='withdrew')result.restocks++;
   }
   result.elapsedTicks=tick;
-  if(tick%game.predictionChunkTicks===0&&(result.deaths>0||p.route===null)){result.endedEarly=true;break;}
+  if(tick%combatGame.predictionChunkTicks===0&&(result.deaths>0||p.route===null)){result.endedEarly=true;break;}
  }
  for(const [skill,xp]of Object.entries(initialSkills)){const gain=p.skills[skill]-xp;if(gain){result.bySkill[skill]=gain;result.xp+=gain;}}
  result.potionItems=potionItems;
  result.normal=Object.values(result.normalItems).reduce((sum,qty)=>sum+qty,0);
  result.rare=Object.values(result.rareItems).reduce((sum,qty)=>sum+qty,0);
- result.normalValue=dropValue(result.normalItems);
- result.rareValue=dropValue(result.rareItems);
+ result.normalValue=dropValue(result.normalItems,combatGame);
+ result.rareValue=dropValue(result.rareItems,combatGame);
  result.totalIncome=result.coins+result.normalValue+result.rareValue;
  return result;
 }
