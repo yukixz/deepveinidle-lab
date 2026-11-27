@@ -355,6 +355,11 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .boss-inline-field{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;color:var(--muted);font-size:12px}
 .boss-inline-field input{width:8rem}
 .boss-feed-table{min-width:660px}
+.boss-fuel-ranking{margin-top:18px;overflow:hidden}
+.boss-fuel-ranking .enemies-heading{padding-bottom:12px}
+.boss-fuel-ranking table{min-width:0}
+.boss-fuel-ranking th[scope=row]{background:transparent;color:#dbe4e5;font-size:12px}
+.boss-fuel-ranking :is(td,th):not(:first-child){text-align:right}
 .boss-pagination{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;padding:12px;color:var(--muted);font-size:12px}
 .boss-pagination .secondary{width:auto;max-width:80px;flex:none;padding:6px 10px;white-space:nowrap}
 .boss-pagination [role=status]{white-space:nowrap}

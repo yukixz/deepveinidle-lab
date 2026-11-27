@@ -52,6 +52,7 @@ try {
   if(requests===3)return route.fulfill({status:503,body:'Unavailable'});
   await route.fulfill({json:{game:'Deep Vein Idle',generatedAt:new Date().toISOString(),refreshSeconds:60,items:{
    5:{lowestSell:770,avg7d:770,sellQty:1000000},
+   1005:{lowestSell:750,avg7d:requests===2?650:500,sellQty:requests===2?91:81},
    1008:{lowestSell:630,highestBuy:420,avg7d:500,sellQty:20},
    2008:{lowestSell:8500,avg7d:requests===2?9600:8500,sellQty:42000},
    2044:{lowestSell:16000,highestBuy:15000,avg7d:15500,sellQty:20},
@@ -93,6 +94,12 @@ try {
  assert.equal(new Set(icons).size,5);
  assert.equal(await find('section').locator('.result-heading .eyebrow').textContent(),'SKILLING BOSSES FEEDING OVERVIEW');
  assert.equal(await find('comparison-title').textContent(),'投喂物品性价比');
+ assert.equal(await find('fuel-title').textContent(),'经验炉火燃料性价比');
+ assert.equal(await find('fuel-ranking').evaluate(node=>node.previousElementSibling?.id),'boss-feed-comparison');
+ const fuelRows=find('fuel-ranking').locator('tbody tr');
+ const uncommonCoal=fuelRows.and(page.locator('[data-boss-fuel-item="1005"]'));
+ assert.equal(await fuelRows.count(),5);
+ assert.equal(await find('fuel-pagination').isVisible(),false);
  assert.equal(await find('box-basis').textContent(),'每100箱');
  assert.equal(await find('section').locator('.panel-heading + .intro').textContent(),'配置角色，对比技能首领投喂物品的性价比');
  assert.equal(await find('import-settings').evaluate(node=>node.previousElementSibling?.classList.contains('intro')),true);
@@ -187,6 +194,9 @@ try {
  await page.locator('[data-boss-feed-sort="totalGold"]').click();
 
  await updateMarket();
+ await textIs('[data-boss-fuel-item="1005"] .column-highlight','384.62K');
+ assert.equal(await fuelRows.first().getAttribute('data-boss-fuel-item'),'1005');
+ assert.deepEqual(await uncommonCoal.locator('td').allTextContents(),['384.62K','81']);
  await find('search').fill('meteoric');
  await row('1008:buy').waitFor();
  const preserved=await page.evaluate(async()=>{
@@ -257,6 +267,12 @@ try {
  await page.keyboard.press('Enter');
  assert.equal(await selectedBoss(),'1');
  assert.equal(await find('boss-badge').textContent(),'海妖');
+ await textIs('#boss-feed-fuel-title','鱼饵大桶燃料性价比');
+ assert.equal(await fuelRows.count(),10);
+ const firstFuel = await fuelRows.first().getAttribute('data-boss-fuel-item');
+ await find('fuel-next-page').click();
+ assert.equal(await find('fuel-page-label').textContent(),'第 2 / 4 页');
+ assert.notEqual(await fuelRows.first().getAttribute('data-boss-fuel-item'),firstFuel);
  assert.equal(await find('character-masteries').locator('fieldset').nth(1).locator('input').last().inputValue(),'6');
  const cookingSpeed=find('attributes').getByRole('group',{name:'烹饪',exact:true}).locator('.stat').filter({hasText:'制造速度加成'});
  assert.equal(await cookingSpeed.locator('strong').textContent(),'6%');
@@ -271,6 +287,8 @@ try {
  const craftCost=await coin('2044:craft').textContent();
  await updateMarket();
  assert.equal(requests,2);
+ await textIs('[data-boss-fuel-item="1005"] .column-highlight','500.00K');
+ assert.deepEqual(await uncommonCoal.locator('td').allTextContents(),['500.00K','91']);
  await page.waitForFunction(previous=>document.querySelector('[data-boss-feed-row="2044:craft"] .column-highlight')?.textContent!==previous,craftCost);
  const refreshedCost=await coin('2044:craft').textContent();
  await updateMarket('返回错误');
@@ -363,6 +381,8 @@ try {
   assert.equal(await find('title').textContent(),language==='zh'?'生效角色配置':'Effective character build');
   assert.equal(await find('boss-badge').textContent(),language==='zh'?'海妖':'Kraken');
   assert.equal(await find('comparison-title').textContent(),language==='zh'?'投喂物品性价比':'Feeding item value');
+  assert.equal(await find('fuel-page-label').textContent(),language==='zh'?'第 1 / 4 页':'Page 1 of 4');
+  assert.equal(await find('fuel-title').textContent(),language==='zh'?'鱼饵大桶燃料性价比':'Chum Barrel Fuel Cost');
   assert.equal(await find('box-basis').textContent(),language==='zh'?'每100箱':'Per 100 chests');
   const methodNote=find('method-note');
   assert.equal(await methodNote.evaluate(node=>node.previousElementSibling?.id),'boss-feed-pagination');

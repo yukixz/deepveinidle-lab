@@ -2,7 +2,7 @@ import {createWorkTimeEngine} from '../vendor/work-time/index.js';
 import * as game from './upstream.js';
 import {translatedName} from './i18n.js';
 import {createCharacterContext} from './boss-feed-character.js';
-import {batchQuantity, goldCost, marketSupply, procurementGold, quote} from './boss-feed-economics.js';
+import {batchQuantity, goldCost, marketSellQuantity, marketSupply, procurementGold, quote} from './boss-feed-economics.js';
 
 export const rarityCount = 5;
 const {bossWorkTimeGame:gameFile,bossFeedRules:native} = game;
@@ -32,6 +32,23 @@ function material(id, quantity) {
   const itemId = Number(id);
   return {id:itemId, name:itemName(itemId), englishName:native.item(native.decodeBase(itemId)).name,
     quality:native.tier(itemId), quantity};
+}
+
+export function calculateFuelRows(boss, priceSnapshot) {
+  const rows = [];
+  for (const base of boss.fuelItems) {
+    const qualities = gameFile.itemSupportsRarity(base) ? rarityCount : 1;
+    for (let quality = 0; quality < qualities; quality++) {
+      const itemId = native.withRarity(base,quality);
+      const itemQuote = priceSnapshot?.getItem(itemId);
+      const burnHours = native.fuelBurnTicks(1,quality) * gameFile.tickMs / 3_600_000;
+      const hourlyCost = isKnown(itemQuote?.avg7d) ? itemQuote.avg7d * native.fuelItemsPerBatch / burnHours : null;
+      rows.push({itemId,quality,name:itemName(base),englishName:native.item(base).name,
+        hourlyCost,supply:marketSellQuantity(itemQuote)});
+    }
+  }
+  return rows.sort((left,right) => (left.hourlyCost ?? Infinity) - (right.hourlyCost ?? Infinity)
+    || left.itemId - right.itemId);
 }
 
 function prep({recipe, quality, quantity, character}) {

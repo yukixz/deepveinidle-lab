@@ -2,6 +2,11 @@ import {bossText,escape} from './boss-feed-copy.js';
 import {compactNumber} from './number-format.js';
 
 const pageSize = 10;
+const compact = (value,number) => Number.isFinite(value) ? compactNumber(value) ?? number(value) : '—';
+const fireNames = {
+  heart:['经验炉火','XP Fire'], kraken:['鱼饵大桶','Chum Barrel'], colony:['孢子灯','Spore Lamp'],
+  blight:['熏药罐','Smudge Pot'], siege:['烽火台','Beacon'],
+};
 const categories = {
   ore:['矿石','Ore'], bars:['金属锭','Metal bars'], coal:['煤','Coal'], raw:['生鱼','Raw fish'],
   cooked:['熟鱼','Cooked fish'], logs:['原木','Logs'], bows:['弓','Bows'], staves:['法杖','Staves'],
@@ -25,6 +30,35 @@ const reasons = {
 };
 export const categoryLabel = (key,t) => categories[key] ? t(...categories[key]) : key;
 
+function renderPagination(host,prefix,rowCount,page,t) {
+  const pageCount = Math.max(1,Math.ceil(rowCount / pageSize));
+  const currentPage = Math.min(Math.max(1,page),pageCount);
+  const start = (currentPage - 1) * pageSize;
+  host.querySelector('.boss-pagination').hidden = pageCount === 1;
+  const destinations = {first:1,previous:Math.max(1,currentPage - 1),next:Math.min(pageCount,currentPage + 1),last:pageCount};
+  for (const [direction,destination] of Object.entries(destinations)) {
+    const button = host.querySelector(`#${prefix}-${direction}-page`);
+    button.value = String(destination);
+    button.disabled = destination === currentPage;
+  }
+  const pageLabel = host.querySelector(`#${prefix}-page-label`);
+  const label = t(`第 ${currentPage} / ${pageCount} 页`,`Page ${currentPage} of ${pageCount}`);
+  if (pageLabel.textContent !== label) pageLabel.textContent = label;
+  return {currentPage,start};
+}
+
+export function renderBossFuelRanking(host, {boss,language,rows,page}) {
+  const {text:t,named,rarity,number} = bossText(language);
+  const [chinese,english] = fireNames[boss.key];
+  host.querySelector('h2').textContent = t(`${chinese}燃料性价比`,`${english} Fuel Cost`);
+  const {currentPage,start} = renderPagination(host,'boss-feed-fuel',rows.length,page,t);
+  host.querySelector('tbody').innerHTML = rows.slice(start,start + pageSize).map(row => `<tr data-boss-fuel-item="${row.itemId}">
+    <th scope="row">${escape(named(row.name,row.englishName))} <span class="boss-rarity" data-rarity="${row.quality}">${rarity(row.quality)}</span></th>
+    <td class="column-highlight">${compact(row.hourlyCost,number)}</td><td>${number(row.supply)}</td>
+  </tr>`).join('');
+  return currentPage;
+}
+
 export function visibleBossRows(rows, filters, sort) {
   const search = filters.search.trim().toLowerCase();
   const sortValue = row => sort.key.startsWith('xp:') ? row.xpBySkill[sort.key.slice(3)] : row[sort.key];
@@ -46,7 +80,7 @@ export function visibleBossRows(rows, filters, sort) {
 
 export function renderBossResults(host, {boss,language,rows,settings,sort,expanded,error,page}) {
   const {text:t,skill,rarity,named,number} = bossText(language);
-  const compact = value => Number.isFinite(value) ? compactNumber(value) ?? number(value) : '—';
+  const compactValue = value => compact(value,number);
   const time = (value,exact = false) => {
     if (!Number.isFinite(value)) return '—';
     if (value < 60) return t(`${number(value)} 秒`,`${number(value)} s`);
@@ -72,7 +106,7 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
   function materials(row) {
     if (!row.materials.length) return `<p>${t('暂无采购明细。','No purchase details available.')}</p>`;
     return `<table class="boss-materials"><thead><tr><th scope="col">${t('采购物品','Purchase item')}</th><th scope="col">${t('用量','Quantity')}</th><th scope="col">${t('有效单价','Effective unit price')}</th><th scope="col">${t('卖单量','Quantity for sale')}</th></tr></thead>
-      <tbody>${row.materials.map(item => `<tr><th scope="row">${escape(name(item))} ${quality(item)}${item.limiting ? `<small class="death-note">${t('限制供应','Limits supply')}</small>` : ''}</th><td>${number(item.quantity)}</td><td>${compact(item.unitPrice)}</td><td>${number(item.sellQty)}</td></tr>`).join('')}</tbody></table>`;
+      <tbody>${row.materials.map(item => `<tr><th scope="row">${escape(name(item))} ${quality(item)}${item.limiting ? `<small class="death-note">${t('限制供应','Limits supply')}</small>` : ''}</th><td>${number(item.quantity)}</td><td>${compactValue(item.unitPrice)}</td><td>${number(item.sellQty)}</td></tr>`).join('')}</tbody></table>`;
   }
 
   function detail(row, columns) {
@@ -87,8 +121,8 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
       [t('投喂耗时','Feeding time'), time(row.feedSeconds,true)],
       [t('计入成本的工时','Time charged'), time(row.countedSeconds,true)],
       [t('市场供应量','Market supply'), number(row.supply)],
-      [t('物资采购额','Purchase cost'), compact(row.materialGold)],
-      [t('收入损失','Income loss'), compact(row.opportunityGold)],
+      [t('物资采购额','Purchase cost'), compactValue(row.materialGold)],
+      [t('收入损失','Income loss'), compactValue(row.opportunityGold)],
     ];
     const notes = [
       reasonText(row),
@@ -119,19 +153,7 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
       ${key ? `<button type="button" class="sort-header" data-boss-feed-sort="${key}">${escape(label)} <span class="sort-arrow" aria-hidden="true">${active ? sort.ascending ? '↑' : '↓' : '↕'}</span></button>` : escape(label)}</th>`;
   }).join('')}</tr>`;
   const filtered = visibleBossRows(rows,settings.filters,sort);
-  const pageCount = Math.max(1,Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(Math.max(1,page),pageCount);
-  const start = (currentPage - 1) * pageSize;
-  host.querySelector('#boss-feed-pagination').hidden = pageCount === 1;
-  const destinations = {first:1,previous:Math.max(1,currentPage - 1),next:Math.min(pageCount,currentPage + 1),last:pageCount};
-  for (const [direction,destination] of Object.entries(destinations)) {
-    const button = host.querySelector(`#boss-feed-${direction}-page`);
-    button.value = String(destination);
-    button.disabled = destination === currentPage;
-  }
-  const pageLabel = host.querySelector('#boss-feed-page-label');
-  const label = t(`第 ${currentPage} / ${pageCount} 页`,`Page ${currentPage} of ${pageCount}`);
-  if (pageLabel.textContent !== label) pageLabel.textContent = label;
+  const {currentPage,start} = renderPagination(host,'boss-feed',filtered.length,page,t);
   const status = host.querySelector('#boss-feed-results-status');
   status.textContent = error ? t('无法计算当前路线。请检查角色配置。','Could not calculate routes. Check your character settings.') : '';
   status.hidden = !status.textContent;
@@ -145,8 +167,8 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
       <th scope="row"><button type="button" class="text-button boss-expand" data-expand="${row.key}" aria-expanded="${open}"${open ? ` aria-controls="boss-feed-detail-${row.key}"` : ''}><span aria-hidden="true">${open ? '▾' : '▸'}</span>
         <span><strong>${escape(name(row))}</strong> ${quality(row)}${marker ? `<small class="death-note" title="${escape(reasonText(row))}">${marker}</small>` : ''}</span></button></th>
       <td>${escape(feedingSkill(row))}</td><td>${kindLabel(row)}</td><td>${number(row.quantity)}</td>
-      <td class="column-highlight">${compact(row.totalGold)}</td><td>${time(row.totalSeconds)}</td>
-      ${boss.skills.map(key => `<td>${compact(row.xpBySkill[key])}</td>`).join('')}
+      <td class="column-highlight">${compactValue(row.totalGold)}</td><td>${time(row.totalSeconds)}</td>
+      ${boss.skills.map(key => `<td>${compactValue(row.xpBySkill[key])}</td>`).join('')}
       </tr>${open ? detail(row,columns.length) : ''}`;
   }).join('') || `<tr><td colspan="${columns.length}" class="empty-results">${t('没有符合当前设置的路线。','No routes match these settings.')}</td></tr>`;
   return currentPage;

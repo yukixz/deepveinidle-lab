@@ -195,6 +195,7 @@ const exportsMap={
 const bossFeedRules={
   rawBosses:'jo', rooms:'Vxo', makePlayer:exportsMap.createPlayer, pointsBase:'LM', markMultiplier:'eH',
   outfitContribution:'o9o', contributionBonus:'YQo', chestThreshold:'fd', feedXp:'KAo', feedRecipe:'rv',
+  fuelItemsPerBatch:'qM', fuelBurnTicks:'_Ao',
   feedUsesFarmingSpeed:'qKo', productionXp:'Tae', equippedSkillTool:'kq',
   materialSavingSkill:'fae', swiftSpeedBonus:'Q8', essenceItemId:'hy', essenceItemsPerTick:'deo',
   item:exportsMap.item, itemList:exportsMap.items, gear:exportsMap.gear, tool:exportsMap.tool,

@@ -199,6 +199,8 @@
       "chestThreshold": "fd",
       "feedXp": "KAo",
       "feedRecipe": "rv",
+      "fuelItemsPerBatch": "qM",
+      "fuelBurnTicks": "_Ao",
       "feedUsesFarmingSpeed": "qKo",
       "productionXp": "Tae",
       "equippedSkillTool": "kq",
@@ -3853,6 +3855,12 @@
       "start": 163634,
       "end": 163656,
       "sha256": "c4b2cacb5a38b2c3043f3cac31b9538e0bff9f47404d3056b02e508574ca67e9"
+    },
+    {
+      "name": "qM",
+      "start": 163657,
+      "end": 163662,
+      "sha256": "a5c4c9974bc6bfbf5305a564aea8d5416add128e84982f0f548d6ace4ee7cd9c"
     },
     {
       "name": "eH",
@@ -9583,6 +9591,12 @@
       "start": 568882,
       "end": 568968,
       "sha256": "11f621737b578f38cdcf046e9005cecb8b7064e01151c284ff1cac09e5ea76c3"
+    },
+    {
+      "name": "_Ao",
+      "start": 569623,
+      "end": 569671,
+      "sha256": "bd26178c4f8df90d8500f647715ebfd304add3e4dc26eae0264f61111996e283"
     },
     {
       "name": "b5",

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {bossList,calculateRows,estimateRoutes,gameVersion,refreshRouteQuotes,valueRoutes} from '../src/boss-feed-model.js';
+import {bossList,calculateFuelRows,calculateRows,estimateRoutes,gameVersion,refreshRouteQuotes,valueRoutes} from '../src/boss-feed-model.js';
 import {importLabCharacter,normalizeCharacter} from '../src/boss-feed-character.js';
 import {parseMarketPrices} from '../src/market-import.js';
 import {priceDefaults} from '../src/item-prices.js';
@@ -33,6 +33,26 @@ const compare = (options = {}) => calculateRows({
   bossId:0, config:character, priceSnapshot, dailyProfit:150_000_000, ...options,
 });
 const find = (rows, itemId, kind) => rows.find(row => row.itemId === itemId && row.kind === kind);
+
+test('ranks boss fire fuel by hourly market cost for each quality', () => {
+  const fuels = createPriceSnapshot({
+    ...priceDefaults(),
+    quotes:parseMarketPrices({
+      game:'Deep Vein Idle', generatedAt:new Date().toISOString(), refreshSeconds:60,
+      items:{5:{avg7d:20,lowestSell:50,sellQty:1000},1005:{avg7d:20,lowestSell:null}},
+    }).quotes,
+    prices:{5:{price:900,locked:true}},
+  });
+  const rows = calculateFuelRows(bossList[0],fuels);
+  assert.deepEqual(rows.map(row => row.itemId),[1005,5,2005,3005,4005]);
+  assert.ok(Math.abs(rows[0].hourlyCost - 20_000 / 1.3) < 1e-9);
+  assert.equal(rows[0].supply,0);
+  assert.equal(rows[1].hourlyCost,20_000);
+  assert.equal(rows[1].supply,1000);
+  assert.equal(rows[2].hourlyCost,null);
+  assert.equal(rows[2].supply,null);
+  assert.deepEqual(bossList.map(boss => calculateFuelRows(boss,fuels).length),[5,40,30,30,20]);
+});
 
 test('uses locked prices or seven-day averages independently of market quantities', () => {
   const rows = compare();

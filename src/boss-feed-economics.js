@@ -11,11 +11,14 @@ export function batchQuantity(threshold, points) {
 
 export function quote(priceSnapshot, itemId, materialSource) {
   const row = priceSnapshot && validItemId(itemId) ? priceSnapshot.getItem(itemId) : null;
-  const noSellOrders = row?.market.status.sellPrice === 'noOrders';
   return {
     unitPrice: row ? selectedUnitPrice(priceSnapshot,itemId,materialSource) : null,
-    sellQty: known(row?.sellQuantity) ? row.sellQuantity : noSellOrders ? 0 : null,
+    sellQty: marketSellQuantity(row),
   };
+}
+
+export function marketSellQuantity(row) {
+  return known(row?.sellQuantity) ? row.sellQuantity : row?.market.status.sellPrice === 'noOrders' ? 0 : null;
 }
 
 export function procurementGold(materials) {

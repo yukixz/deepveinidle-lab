@@ -1,8 +1,8 @@
-import {bossList,estimateRoutes,rarityCount,refreshRouteQuotes,valueRoutes} from './boss-feed-model.js';
+import {bossList,calculateFuelRows,estimateRoutes,rarityCount,refreshRouteQuotes,valueRoutes} from './boss-feed-model.js';
 import {importLabCharacter,normalizeCharacter,toolSlots} from './boss-feed-character.js';
 import {renderBossAttributes,renderCharacterPanel} from './boss-feed-character-panel.js';
 import {bossText,escape,option} from './boss-feed-copy.js';
-import {categoryLabel,renderBossResults} from './boss-feed-results.js';
+import {categoryLabel,renderBossFuelRanking,renderBossResults} from './boss-feed-results.js';
 import {getSnapshot,subscribe} from './price-service.js';
 import {bindSimulationPanel,pagePriceSettings,simulationPanel} from './page-prices.js';
 import {characterImportPanel,importStatusText,probeCharacter,registerCharacterUpdates} from './import-controls.js';
@@ -23,6 +23,7 @@ const record = value => value && typeof value === 'object' && !Array.isArray(val
 let host,language,loadFailed = false,saveFailed = false,dirty = true;
 let calculationError = false,rows = [];
 let estimate, valuation, repaintRequested = false;
+let fuelRanking;
 let importBusy = false,importStatus = null;
 let frame;
 
@@ -69,6 +70,7 @@ const bossSettings = Object.fromEntries(bossList.map(entry => {
 }));
 let sort = defaultSort;
 let resultPage = 1;
+let fuelPage = 1;
 const expanded = new Set();
 const settings = () => bossSettings[boss.id];
 const find = id => host.querySelector('#boss-feed-' + id);
@@ -97,15 +99,19 @@ function paintResults() {
     error:calculationError,page:resultPage});
 }
 
+function paintFuelRanking() {
+  fuelPage = renderBossFuelRanking(find('fuel-ranking'),{boss,language,rows:fuelRanking.rows,page:fuelPage});
+}
+
 function calculate(forcePaint = false) {
   const previousRows = rows;
   const previousError = calculationError;
+  const snapshot = getSnapshot();
   try {
     const {fire,chargeCraftTime} = settings();
     if (estimate?.boss !== boss || estimate.config !== config || estimate.fire !== fire) {
       estimate = {boss,config,fire,...estimateRoutes({bossId:boss.id,config,settings:{fire}})};
     }
-    const snapshot = getSnapshot();
     const materialSource = pagePriceSettings('boss-feed').values.materials;
     if (estimate.snapshot !== snapshot || estimate.materialSource !== materialSource) {
       estimate.quotes = refreshRouteQuotes(estimate.materialIds,snapshot,estimate.quotes,materialSource);
@@ -128,6 +134,11 @@ function calculate(forcePaint = false) {
   dirty = false;
   repaintRequested = false;
   if (shouldPaint) paintResults();
+  const fuelBossChanged = fuelRanking?.boss !== boss;
+  if (fuelBossChanged) fuelPage = 1;
+  const fuelChanged = fuelBossChanged || fuelRanking.snapshot !== snapshot;
+  if (fuelChanged) fuelRanking = {boss,snapshot,rows:calculateFuelRows(boss,snapshot)};
+  if (forcePaint || fuelChanged) paintFuelRanking();
 }
 
 function scheduleCalculation(repaint = true) {
@@ -322,6 +333,12 @@ function wireControls() {
     resultPage = Number(button.value);
     paintResults();
   };
+  find('fuel-pagination').onclick = event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    fuelPage = Number(button.value);
+    paintFuelRanking();
+  };
 
   const comparison = find('comparison');
   comparison.onclick = event => {
@@ -368,6 +385,16 @@ function comparisonFilters({text:t,rarity}) {
   </div>`;
 }
 
+function pagination(prefix,label,t) {
+  return `<nav class="boss-pagination" id="${prefix}-pagination" aria-label="${label}" hidden>
+        <button class="secondary" type="button" id="${prefix}-first-page">${t('首页','First')}</button>
+        <button class="secondary" type="button" id="${prefix}-previous-page">${t('上一页','Previous')}</button>
+        <span id="${prefix}-page-label" role="status"></span>
+        <button class="secondary" type="button" id="${prefix}-next-page">${t('下一页','Next')}</button>
+        <button class="secondary" type="button" id="${prefix}-last-page">${t('末页','Last')}</button>
+      </nav>`;
+}
+
 export function renderBossFeed(nextLanguage) {
   const target = document.getElementById('boss-feed-content');
   if (target === host && language === nextLanguage) {
@@ -399,17 +426,23 @@ export function renderBossFeed(nextLanguage) {
       ${comparisonFilters(copy)}
       <p class="table-note" id="boss-feed-results-status" role="status" hidden></p>
       <div class="table-scroll" tabindex="0" role="region" aria-labelledby="boss-feed-comparison-title"><table class="boss-feed-table"><thead></thead><tbody></tbody></table></div>
-      <nav class="boss-pagination" id="boss-feed-pagination" aria-label="${t('投喂路线分页','Feeding route pages')}" hidden>
-        <button class="secondary" type="button" id="boss-feed-first-page">${t('首页','First')}</button>
-        <button class="secondary" type="button" id="boss-feed-previous-page">${t('上一页','Previous')}</button>
-        <span id="boss-feed-page-label" role="status"></span>
-        <button class="secondary" type="button" id="boss-feed-next-page">${t('下一页','Next')}</button>
-        <button class="secondary" type="button" id="boss-feed-last-page">${t('末页','Last')}</button>
-      </nav>
+      ${pagination('boss-feed',t('投喂路线分页','Feeding route pages'),t)}
       <p class="table-note" id="boss-feed-method-note">${t(
         '投喂、补料和自制耗时均由<strong class="simulation-caveat">工时模型</strong>估算。自制只计算一层配方，金币成本包含采购额和按设置折算的收入损失。',
         'Feeding, restocking and crafting times are estimated with the <strong class="simulation-caveat">work-time model</strong>. Self-crafting covers one recipe layer. Coin cost includes purchases and income lost for the time charged in your settings.',
       )}</p>
+    </section>
+    <section class="panel enemies boss-fuel-ranking" id="boss-feed-fuel-ranking" aria-labelledby="boss-feed-fuel-title">
+      <div class="enemies-heading"><h2 id="boss-feed-fuel-title"></h2></div>
+      <div class="table-scroll" tabindex="0" role="region" aria-labelledby="boss-feed-fuel-title">
+        <table>
+          <thead><tr><th scope="col">${t('燃料','Fuel')}</th>
+            <th scope="col" class="column-highlight" aria-sort="ascending" title="${t('按 7 天成交均价计算','Based on the 7-day trade average')}">${t('每小时投入成本','Cost per hour')}</th>
+            <th scope="col">${t('市场供应量','Market supply')}</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      ${pagination('boss-feed-fuel',t('燃料分页','Fuel pages'),t)}
     </section>
   </div>`;
   paintBossSettings();

@@ -596,6 +596,7 @@ function q8(e){if(Eo(e)>0)return null;const o=io(e);if(ic.some(d=>d.itemId===o))
 const MKo=778;
 const BM=.1;
 const $0=Math.round(36e3/mo);
+const qM=10;
 const eH=1.1;
 function pZ(e){return Math.sqrt(e.feedHourScale)}
 const gc=90;
@@ -1551,6 +1552,7 @@ function NAo(e,o,t){const a=e.route?.boss?.id,s=e.skillboss;if(a===void 0||!s||s
 function OAo(e,o){return e.fuel}
 function UAo(e,o,t,a){if(a<=0)return 0;const s=e.skillbossBurn[o.id]??={fire:0},n=OAo(o),i=s[t];if(i>=a)return s[t]=i-a,a;const r=Bo(e,n),l=i+r*$0;if(a>=l)return s[t]=0,r>0&&delete e.bank[n],l;const h=Math.ceil((a-i)/$0);return e.bank[n]=r-h,e.bank[n]===0&&delete e.bank[n],s[t]=i+h*$0-a,a}
 function MQo(e,o){const t=e.route?.boss,a=t?jo[t.id]:void 0;!t||!a||UAo(e,a,"fire",o)}
+function _Ao(e,o){return Math.floor(e*$0*xu[o])}
 function b5(e,o){return e.bossMarks.includes(o.id)}
 function zAo(e){const o=a=>a.skill===e.skill&&a.inputs.length>0&&!na(a),t=a=>xe.find(s=>o(s)&&a.includes(io(s.output.itemId)));return t(e.to)??t(e.from)??CQo(xe.filter(a=>o(a)&&!a.retired&&a.levelReq<=e.levelReq))}
 function CQo(e){let o=e[0];for(const t of e)(t.baseTicks>o.baseTicks||t.baseTicks===o.baseTicks&&t.levelReq>o.levelReq)&&(o=t);return o}
@@ -2108,6 +2110,8 @@ export const bossFeedRules = Object.freeze({
   chestThreshold: fd,
   feedXp: KAo,
   feedRecipe: rv,
+  fuelItemsPerBatch: qM,
+  fuelBurnTicks: _Ao,
   feedUsesFarmingSpeed: qKo,
   productionXp: Tae,
   equippedSkillTool: kq,
