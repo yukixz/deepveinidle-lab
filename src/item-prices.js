@@ -32,7 +32,11 @@ const time=v=>Number.isSafeInteger(v)&&v>0&&v<=Date.now()+60000;
 export const validPrice=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=Number.MAX_SAFE_INTEGER;
 export function validItemId(id){
  if(!Number.isSafeInteger(id)||id<=0)return false;
- try{const base=game.baseItemId(id),tier=game.itemTier(id),plus=Math.floor(id/game.encode(0,1));return tier>=0&&tier<=4&&plus<=game.maxEnhancement&&game.encode(game.withRarity(base,tier),plus)===id&&game.item(id).id===id&&(!plus||game.canEnhance(id));}catch{return false;}
+ try{
+  const base=game.baseItemId(id),tier=game.itemTier(id),plus=game.itemEnhancement(id),relics=game.itemRelics(id);
+  const encoded=game.encodeRelics(game.encode(game.withRarity(base,tier),plus),relics);
+  return tier<=4&&plus<=game.maxEnhancement&&encoded===id&&game.item(id).id===id&&(!plus||game.canEnhance(id));
+ }catch{return false;}
 }
 export function itemFamily(id){try{return game.marketFamily(game.baseItemId(id));}catch{return null;}}
 export function priceDefaults(){return {version:7,prices:{},quotes:{},preferences:{autoImport:true,categories:{all:'avg7d',...Object.fromEntries(legacyCategoryKeys.map(key=>[key,key===monsterValuablesCategory?'vendor':null]))},vendorFallback:Object.fromEntries(['all',...legacyCategoryKeys].map(key=>[key,false])),reviewCategories:[]}};}

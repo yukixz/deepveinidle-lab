@@ -62,6 +62,9 @@ try{
   await checkPanel(page);
   await button(page,'skill','mining').click();assert.equal(await rows(page).count(),10);
   assert.ok(await rows(page).evaluateAll(els=>els.every(el=>el.dataset.skill==='mining')));
+  await button(page,'skill','all').click();await button(page,'skill','thieving').click();
+  assert.equal(await rows(page).count(),10);
+  assert.ok(await rows(page).evaluateAll(els=>els.every(el=>el.dataset.skill==='thieving'&&el.cells[2].textContent.includes('+25%'))));
   await button(page,'skill','all').click();await button(page,'kind','all').click();await page.reload();
   assert.deepEqual(await selected(page),{skills:['all'],kinds:['all']});assert.equal(await rows(page).count(),48);
   results.cases.push({language,width,status:'passed',checks:'multi-select, keyboard, reload/new tab, language/navigation, all normalization, mixed feasibility'});

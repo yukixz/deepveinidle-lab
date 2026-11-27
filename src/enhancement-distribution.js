@@ -1,3 +1,5 @@
+import {enhancementMinimum} from './enhancement.js';
+
 export const enhancementPercentiles=Object.freeze([80,90,95]);
 const maxStoredCells=5_000_000,maxEvaluatedCells=500_000_000;
 
@@ -14,6 +16,11 @@ function integers(values){
  return {values:parsed.map(x=>x.units*10n**BigInt(places-x.places)),scale:10n**BigInt(places)};
 }
 const gcd=(a,b)=>{while(b){[a,b]=[b,a%b];}return a;};
+function moneyValue(amount,scale){
+ const divisor=Number(scale);
+ if(!Number.isFinite(divisor)||amount>BigInt(Number.MAX_SAFE_INTEGER))throw Error('distributionPrecision');
+ return Number(amount)/divisor;
+}
 function resourceLimit(reason,details={}){
  const error=Error('distributionLimit');error.details={reason,...details};throw error;
 }
@@ -42,11 +49,7 @@ export function exactCostDistribution(steps,start,{alphas=[.95,.99],maxCells=max
 function solve(steps,start,values,scale,alphas,maxCells,maxWork,budget={used:0}){
  let target=steps.length,prefix=0n;
  const finish=(result,points=0)=>{const evaluatedCells=points*target;budget.used+=evaluatedCells;return {...result,evaluatedCells};};
- const output=(cost,probability)=>{
-  cost+=prefix;
-  if(!Number.isFinite(Number(scale))||cost>BigInt(Number.MAX_SAFE_INTEGER))throw Error('distributionPrecision');
-  return {minPrice:Number(cost)/Number(scale),actualProbability:probability};
- };
+ const output=(cost,probability)=>({minPrice:moneyValue(cost+prefix,scale),actualProbability:probability});
  if(start===target)return finish({quantiles:alphas.map(alpha=>({alpha,...output(0n,1)})),evaluatedBudgetPoints:0});
  if(steps.slice(start).every(s=>s.chance===1)){
   const cost=steps.slice(start).reduce((total,_,i)=>total+values[(i+start)*2],0n);
@@ -89,17 +92,146 @@ function solve(steps,start,values,scale,alphas,maxCells,maxWork,budget={used:0})
  budget.used+=points*target;
  resourceLimit('work',{states:target,maxWork,evaluatedBudgetPoints:points,storedCells,evaluatedCells:budget.used});
 }
+
+function solveStickyPity(chances,successCost,scrollCost,scale,alphas,maxWork){
+ const quantiles=[],failureCost=successCost+scrollCost;
+ let uncompleted=1;
+ for(let failures=0;failures<maxWork;failures++){
+  uncompleted*=1-chances[Math.min(failures,chances.length-1)];
+  const actualProbability=1-uncompleted;
+  while(quantiles.length<alphas.length&&actualProbability>=alphas[quantiles.length]){
+   const minPrice=moneyValue(successCost+BigInt(failures)*failureCost,scale);
+   quantiles.push({alpha:alphas[quantiles.length],minPrice,lowerPrice:minPrice,relativeError:0,exact:true,actualProbability});
+  }
+  if(quantiles.length===alphas.length)return {quantiles,exact:true,evaluatedBudgetPoints:failures+1,evaluatedCells:failures+1,storedCells:1,dpStates:1};
+ }
+ resourceLimit('work',{states:1,maxWork,evaluatedCells:maxWork});
+}
+
+// Invert a conjugate-symmetric spectrum at evenly spaced points. The radius
+// used to evaluate the generating function is accounted for by the caller.
+function invertSpectrum(real,imaginary){
+ const size=real.length;
+ for(let i=1,j=0;i<size;i++){
+  let bit=size>>1;
+  for(;j&bit;bit>>=1)j^=bit;
+  j^=bit;
+  if(i<j){[real[i],real[j]]=[real[j],real[i]];[imaginary[i],imaginary[j]]=[imaginary[j],imaginary[i]];}
+ }
+ for(let width=2;width<=size;width*=2){
+  const half=width/2;
+  for(let j=0;j<half;j++){
+   const angle=2*Math.PI*j/width,c=Math.cos(angle),s=Math.sin(angle);
+   for(let i=j;i<size;i+=width){
+    const next=i+half,r=real[next]*c-imaginary[next]*s,v=real[next]*s+imaginary[next]*c;
+    real[next]=real[i]-r;imaginary[next]=imaginary[i]-v;real[i]+=r;imaginary[i]+=v;
+   }
+  }
+ }
+}
+
+// A first passage through step k consists of one winning attempt plus any
+// number of losses. Each loss pays its costs and independently rebuilds the
+// lower steps before retrying k with its saved pity count. The saturated
+// retry tail is a geometric series. Products combine independent passages.
+function evaluatePassages(real,imaginary,steps,costs,start,minimum,damping){
+ const size=real.length,from=new Float64Array(steps.length),to=new Float64Array(steps.length);
+ const phases=costs.map(cost=>cost%size),radii=costs.map(cost=>Math.exp(-damping*cost/size));
+ const angle=-2*Math.PI/size;
+ for(let i=0;i<=size/2;i++){
+  let prefixR=1,prefixI=0,resultR=1,resultI=0;
+  for(let k=minimum;k<steps.length;k++){
+   const {failTo,chance,chances=[chance]}=steps[k],failure=2*k+1;
+   let rebuildR=1,rebuildI=0;
+   if(chance<1){
+    if(failTo===minimum){rebuildR=prefixR;rebuildI=prefixI;}
+    else for(let j=failTo;j<k;j++){
+     const r=rebuildR*from[j]-rebuildI*to[j];rebuildI=rebuildR*to[j]+rebuildI*from[j];rebuildR=r;
+    }
+   }
+   const retryAngle=angle*(i*phases[failure]%size);
+   const fr=radii[failure]*Math.cos(retryAngle),fi=radii[failure]*Math.sin(retryAngle);
+   const retryR=fr*rebuildR-fi*rebuildI,retryI=fr*rebuildI+fi*rebuildR;
+   const tail=chances.at(-1),a=1-(1-tail)*retryR,b=(1-tail)*retryI,squared=a*a+b*b;
+   let pr=tail*a/squared,pi=tail*b/squared;
+   for(let j=chances.length-2;j>=0;j--){
+    const p=chances[j],r=p+(1-p)*(retryR*pr-retryI*pi);
+    pi=(1-p)*(retryR*pi+retryI*pr);pr=r;
+   }
+   const win=2*k,winAngle=angle*(i*phases[win]%size),wr=radii[win]*Math.cos(winAngle),wi=radii[win]*Math.sin(winAngle);
+   from[k]=wr*pr-wi*pi;to[k]=wr*pi+wi*pr;
+   const prefix=prefixR*from[k]-prefixI*to[k];prefixI=prefixR*to[k]+prefixI*from[k];prefixR=prefix;
+   if(k>=start){const result=resultR*from[k]-resultI*to[k];resultI=resultR*to[k]+resultI*from[k];resultR=result;}
+  }
+  real[i]=resultR;imaginary[i]=resultI;
+  if(i>0&&i<size/2){real[size-i]=resultR;imaginary[size-i]=-resultI;}
+ }
+}
+
+function solvePity(steps,start,minimum,values,scale,alphas,maxCells,maxWork,budget,mean){
+ const relevant=values.slice(2*minimum),unit=relevant.reduce(gcd,0n);
+ const scales=Number(scale),price=Number(unit)/scales;
+ if(!unit)return {quantiles:alphas.map(alpha=>({alpha,minPrice:0,lowerPrice:0,actualProbability:1})),evaluatedBudgetPoints:1,storedCells:0};
+ if(!Number.isFinite(scales)||!Number.isFinite(price)||price===0)throw Error('distributionPrecision');
+ const costs=steps.flatMap((_,k)=>[Number(values[2*k]/unit),Number((values[2*k]+values[2*k+1])/unit)]);
+ if(costs.slice(2*minimum).some(cost=>!Number.isSafeInteger(cost)))throw Error('distributionPrecision');
+ const states=steps.length-minimum,retries=steps.slice(minimum).reduce((n,step)=>n+(step.chances?.length??1),0);
+ const damping=12,roundoffGuard=1e-6,aliasGuard=Math.exp(-damping)+roundoffGuard;
+ // After undoing the radius, folded probability mass adds at most exp(-12)
+ // to any CDF in the period. Guard both sides for floating-point error and
+ // require additional coverage for the one-sided contribution of folded mass.
+ for(let size=32;;size*=2){
+  const storedCells=2*size+2*steps.length;
+  if(storedCells>maxCells)resourceLimit('memory',{states,storedCells,maxCells});
+  const work=(size/2+1)*(retries+states)+size*Math.log2(size);
+  if(work>maxWork-budget.used)resourceLimit('work',{states,maxWork,evaluatedCells:budget.used});
+  if(size<mean/price*2)continue;
+  budget.used+=work;
+  const real=new Float64Array(size),imaginary=new Float64Array(size);
+  evaluatePassages(real,imaginary,steps,costs,start,minimum,damping);
+  invertSpectrum(real,imaginary);
+  const lower=Array(alphas.length).fill(-1),upper=Array(alphas.length).fill(-1);
+  let cdf=0,compensation=0;
+  for(let n=0;n<size;n++){
+   const mass=real[n]*Math.exp(damping*n/size)/size-compensation,next=cdf+mass;
+   compensation=(next-cdf)-mass;cdf=next;
+   if(!Number.isFinite(cdf)||cdf<-roundoffGuard||cdf>1+aliasGuard)throw Error('distributionPrecision');
+   for(let i=0;i<alphas.length;i++){
+    if(lower[i]<0&&cdf>=alphas[i]-roundoffGuard)lower[i]=n;
+    if(upper[i]<0&&cdf>=alphas[i]+aliasGuard)upper[i]=n;
+   }
+   if(upper.every(index=>index>=0)){
+    const money=index=>moneyValue(BigInt(index)*unit,scale);
+    return {quantiles:alphas.map((alpha,i)=>({alpha,lowerPrice:money(lower[i]),minPrice:money(upper[i]),actualProbability:null})),evaluatedBudgetPoints:n+1,storedCells,dpStates:states};
+   }
+  }
+ }
+}
+
 export function enhancementDistribution(input,result,{maxCells=maxStoredCells,maxWork=maxEvaluatedCells}={}){
  if(!Number.isSafeInteger(maxCells)||maxCells<=0||!Number.isSafeInteger(maxWork)||maxWork<=0)throw Error('invalidConfiguration');
  if(result.pricedGold===null)return null;
- const {values,scale}=integers([input.shardPrice??0,input.scrollPrice??0,...result.steps.map(s=>s.gold)]);
  const steps=result.steps;
- const costs=result.steps.flatMap((s,k)=>[values[k+2]+BigInt(s.shards)*values[0],s.protected?values[1]:0n]);
+ const materialPrices=[['shards','shardPrice'],['scrolls','scrollPrice'],['essence','essencePrice'],['cores','corePrice']];
+ const {values,scale}=integers([...materialPrices.map(([total,key])=>result.totals[total]>0?input[key]??0:0),...steps.map(s=>s.gold)]);
+ const [shard,scroll,essence,core]=values;
+ const costs=steps.flatMap((s,k)=>[values[k+4]+BigInt(s.shards)*shard+BigInt(s.essence)*essence+BigInt(s.core)*core,s.protected?scroll:0n]);
  const alphas=enhancementPercentiles.map(p=>p/100),budget={used:0};
+ const minimum=enhancementMinimum(steps,input.current),pity=steps.slice(minimum).some(s=>s.chances.length>1);
+ const start=input.current;
+ if(pity&&steps.length===start+1&&steps[start].failTo===start)return solveStickyPity(steps[start].chances,costs[2*start],costs[2*start+1],scale,alphas,maxWork);
+ const relevantCosts=pity?costs.slice(2*minimum):costs;
  let rounds=0,evaluatedBudgetPoints=0,storedCells=0;
+ const solveCosts=costs=>pity?solvePity(steps,input.current,minimum,costs,scale,alphas,maxCells,maxWork,budget,result.pricedGold):solve(steps,input.current,costs,scale,alphas,maxCells,maxWork,budget);
+ const bound=(q,lowerPrice)=>{
+  if(q.minPrice<lowerPrice)throw Error('unreliableCalculation');
+  return {alpha:q.alpha,minPrice:q.minPrice,lowerPrice,relativeError:lowerPrice===0?(q.minPrice===0?0:Infinity):(q.minPrice-lowerPrice)/lowerPrice,exact:q.minPrice===lowerPrice,actualProbability:null};
+ };
  const exact=()=>{
-  const solved=solve(steps,input.current,costs,scale,alphas,maxCells,maxWork,budget);
-  return {...solved,exact:true,evaluatedBudgetPoints:evaluatedBudgetPoints+solved.evaluatedBudgetPoints,storedCells:Math.max(storedCells,solved.storedCells??0),evaluatedCells:budget.used,quantiles:solved.quantiles.map(q=>({...q,lowerPrice:q.minPrice,relativeError:0,exact:true}))};
+  const solved=solveCosts(costs);
+  const quantiles=solved.quantiles.map(q=>pity?bound(q,q.lowerPrice):{...q,lowerPrice:q.minPrice,relativeError:0,exact:true});
+  if(quantiles.some(q=>q.relativeError>.001))throw Error('distributionPrecision');
+  return {...solved,exact:quantiles.every(q=>q.exact),evaluatedBudgetPoints:evaluatedBudgetPoints+solved.evaluatedBudgetPoints,storedCells:Math.max(storedCells,solved.storedCells??0),evaluatedCells:budget.used,quantiles};
  };
  if(input.current===input.target||steps.slice(input.current).every(s=>s.chance===1))return exact();
  const exponent=Math.floor(Math.log10(result.pricedGold))-4;
@@ -108,23 +240,25 @@ export function enhancementDistribution(input,result,{maxCells=maxStoredCells,ma
  const initialGrid=Number(grid)/Number(scale);
  // Strictly positive base costs avoid zero-cost cycles between states in
  // the lower model. The game's per-attempt gold cost is always positive.
- const minimum=costs.filter((_,i)=>i%2===0).reduce((a,b)=>a<b?a:b);
- if(minimum<=0n)throw Error('unreliableCalculation');
- while(grid>minimum)grid/=10n;
+ const minimumCost=costs.filter((_,i)=>i%2===0).reduce((a,b)=>a<b?a:b);
+ if(minimumCost<=0n)throw Error('unreliableCalculation');
+ while(!pity&&grid>minimumCost)grid/=10n;
  for(;;){
   rounds++;
-  if(costs.every(v=>v%grid===0n))return {...exact(),initialGrid,grid:Number(grid)/Number(scale),rounds};
-  const lowerCosts=costs.map(v=>v/grid*grid),upperCosts=costs.map(v=>(v+grid-1n)/grid*grid);
-  const lower=solve(steps,input.current,lowerCosts,scale,alphas,maxCells,maxWork,budget);
-  const upper=solve(steps,input.current,upperCosts,scale,alphas,maxCells,maxWork,budget);
+  if(relevantCosts.every(v=>v%grid===0n))return {...exact(),initialGrid,grid:Number(grid)/Number(scale),rounds};
+  const roundCosts=round=>pity?steps.flatMap((_,k)=>{
+   const win=costs[2*k],fail=win+costs[2*k+1],roundedWin=round(win);
+   return [roundedWin,round(fail)-roundedWin];
+  }):costs.map(round);
+  const lowerCosts=roundCosts(v=>v/grid*grid),upperCosts=roundCosts(v=>(v+grid-1n)/grid*grid);
+  const lower=solveCosts(lowerCosts);
+  const upper=solveCosts(upperCosts);
   evaluatedBudgetPoints+=lower.evaluatedBudgetPoints+upper.evaluatedBudgetPoints;
   storedCells=Math.max(storedCells,lower.storedCells??0,upper.storedCells??0);
-  const quantiles=upper.quantiles.map((q,i)=>{
-   const lowerPrice=lower.quantiles[i].minPrice;
-   if(q.minPrice<lowerPrice)throw Error('unreliableCalculation');
-   return {alpha:q.alpha,minPrice:q.minPrice,lowerPrice,relativeError:lowerPrice===0?(q.minPrice===0?0:Infinity):(q.minPrice-lowerPrice)/lowerPrice,exact:false,actualProbability:null};
-  });
+  const quantiles=upper.quantiles.map((q,i)=>({...bound(q,lower.quantiles[i].lowerPrice??lower.quantiles[i].minPrice),exact:false}));
   if(quantiles.every(q=>q.relativeError<=.001))return {quantiles,exact:false,initialGrid,grid:Number(grid)/Number(scale),rounds,evaluatedBudgetPoints,evaluatedCells:budget.used,storedCells,dpStates:upper.dpStates};
-  grid=grid>10n?grid/10n:1n;
+  const widest=Math.max(...quantiles.map(q=>q.relativeError));
+  const refinement=pity?BigInt(Number.isFinite(widest)?Math.max(2,Math.ceil(widest/.0009)):2):10n;
+  grid=grid>refinement?grid/refinement:1n;
  }
 }

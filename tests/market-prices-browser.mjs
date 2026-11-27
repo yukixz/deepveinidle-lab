@@ -54,6 +54,10 @@ try{
   await opener.click();assert.equal(requests,0);
   assert.equal(await page.locator('#price-import-settings, #price-import-reset, [data-price-category]').count(),0);
   assert.equal(await page.locator('.price-sync #price-import, .price-sync #price-auto-import').count(),2);
+  await page.locator('#price-search').fill('909');await page.locator('#price-search').blur();
+  const keyRow=page.locator('tr').filter({has:page.locator('[data-price-value="909"]')});
+  assert.equal(await keyRow.count(),1);
+  assert.equal(await keyRow.locator('td').nth(4).textContent(),'—');
   await page.locator('#price-import').click();await page.locator('#price-status[role="alert"]').waitFor();
   const error=await page.locator('#price-status').textContent();
   await page.locator('#price-close').click();await opener.click();assert.equal(await page.locator('#price-status').textContent(),error);

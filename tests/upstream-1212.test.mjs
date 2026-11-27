@@ -12,17 +12,18 @@ import {captureHarness,flushCapture} from './helpers/capture-harness.mjs';
 const tools=[[698,84],[699,369],[572,89],[573,364],[575,94],[576,374],[711,389],[712,384],[718,327],[719,379]];
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-12,`${a} != ${b}`);
 
-test('1212 uses the complete reviewed build and retains disabled experimental features',()=>{
+test('The shared reviewed build applies live features and initializes synthetic account state',()=>{
  const manifest=JSON.parse(fs.readFileSync('vendor/manifest.json'));
- assert.equal(manifest.changelogVersion,'1.0.1221');assert.equal(manifest.declarations.length,1480);assert.deepEqual(manifest.overrides,[]);
- assert.deepEqual(game.features,{enhanceRedesign:false,alchemy:false,profiles:false});
- assert.equal(game.rooms.length,18);assert.equal(game.equipmentSlots.includes('flask'),true);
- assert.equal(game.items.length,1489);assert.equal(game.upgradeRecipes.length,27);
+ assert.equal(manifest.changelogVersion,'1.0.1228');assert.deepEqual(manifest.overrides,[]);
+ assert.deepEqual(game.features,{enhanceRedesign:true,alchemy:true,profiles:true,guildIsles:false,campUncapped:true,earrings:true});
+ assert.equal(game.rooms.length,19);
+ for(const slot of ['flask','earring'])assert.ok(game.equipmentSlots.includes(slot));
+ assert.equal(game.item(764).name,'Enhance essence');assert.equal(game.gear(988).slot,'earring');
  const {player:p,context}=createScenario({});let prepared;
  game.predict(p,context,value=>{prepared=value;return false;});
  assert.deepEqual(prepared.masterySkills,{});assert.equal(prepared.skillboss,null);
  assert.deepEqual(prepared.skillbossBurn,{});assert.deepEqual(prepared.houseTrophies,{});
- assert.deepEqual(prepared.alchemy.carry,{});
+ assert.deepEqual(prepared.alchemy.carry,{house:0,boss:0,enhance:0,xp:0});
 });
 
 test('1212 ten forged tools preserve rarity and enhancement and inherit Meteoric cost tiers',()=>{

@@ -11,6 +11,41 @@ import {questlessTick} from '../scripts/native-questless.mjs';
 import {valueCombatRewards} from '../src/item-prices.js';
 const jobFor=skill=>gatheringJobs.find(j=>j.skill===skill);
 
+test('high-level gathering models retained dungeon keys and the Keyfinder multiplier',()=>{
+ const job=gatheringJobs.find(job=>job.id===8);
+ const state={...gatheringDefaults(),levels:{mining:85},simulationHours:1,hotSetting:'off',discardGathered:true};
+ const base=simulateGatheringJob(state,job,{seed:0});
+ const ring=simulateGatheringJob({...state,gear:{earring:{id:986,tier:4,plus:25}}},job,{seed:0});
+ for(const [id,perHour] of [[909,.06],[910,.06],[911,.12]]){
+  const ordinary=base.rareItems[id]/base.completed;
+  const equipped=ring.rareItems[id]/ring.completed;
+  assert.ok(Math.abs(ordinary-13*perHour/6000)<1e-10);
+  assert.ok(Math.abs(equipped/ordinary-1.25)<1e-10);
+  assert.equal(ring.collectionItems[id],ring.rareItems[id]);
+ }
+});
+
+test('dungeon key tiers use the task requirement and rarity increases the chance by its square root',()=>{
+ const state={...gatheringDefaults(),levels:{mining:85},simulationHours:1,hotSetting:'off'};
+ const copper=gatheringJobs.find(job=>job.id===1);
+ const cobalt=gatheringJobs.find(job=>job.id===7);
+ const common=simulateGatheringJob(state,copper,{seed:0});
+ const blessed=simulateGatheringJob({...state,worldRarity:300},copper,{seed:0});
+ const middle=simulateGatheringJob(state,cobalt,{seed:0});
+ const keyIds=result=>[909,910,911].filter(id=>result.rareItems[id]>0);
+ assert.deepEqual(keyIds(common),[909]);
+ assert.deepEqual(keyIds(middle),[909,910]);
+ assert.ok(Math.abs((blessed.rareItems[909]/blessed.completed)/(common.rareItems[909]/common.completed)-2)<1e-10);
+});
+
+test('Packmaster coat changes work capacity and movement and retains the item cap',()=>{
+ const state=normalizeGathering({...gatheringDefaults(),gear:{body:{id:989,tier:4,plus:40}}});
+ assert.equal(state.gear.body.plus,25);
+ const {capacity,moveSpeed}=gatheringStats(state);
+ assert.equal(capacity,31);
+ assert.equal(moveSpeed,1.383);
+});
+
 test('discard setting defaults safely, persists as a boolean and resets on character import',()=>{
  const defaults=gatheringDefaults();assert.equal(defaults.discardGathered,false);
  for(const value of [undefined,null,false,'true','false',1])assert.equal(normalizeGathering({...defaults,discardGathered:value}).discardGathered,false);

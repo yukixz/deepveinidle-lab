@@ -9,7 +9,6 @@ import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
 import {analyze} from 'eslint-scope';
 import {game,preset} from '../src/model.js';
-import * as combatGame from '../src/upstream-combat.js';
 import {createScenario,simulateMonster,START_TICK} from '../src/simulation.js';
 import {gatheringDefaults,gatheringJobs} from '../src/gathering-model.js';
 import {createGatheringScenario,simulateGatheringSite} from '../src/gathering-simulation.js';
@@ -43,27 +42,32 @@ Object.values(exports).forEach(collect);
  return {engine:await import(pathToFileURL(file)),version:metadata.changelogVersion};
 }
 
-const exports={"world":"P","monsters":"Pn","predict":"Eg","startFight":"Vp","createContext":"wI","gear":"Ha","armourMultiplier":"oB","masteryMultiplier":"Ma","restock":"bye","offline":"IS","startWork":"Bn","enhanceCost":"Op","enhanceChance":"yb","enhanceXp":"sbe","enhanceTicks":"qi","skillPetChance":"g4","hotSkill":"yv","startUpgrade":"LZ","tick":"nee","killMonster":"Bge","seededFloat":"vs","bonusSalt":"bge","upgradeResult":"_d","upgradeRecipes":"Un"};
-const combatExports={
- world:'X',monsters:'Ll',gear:'as',predict:'fS',offline:'xq',startFight:'Sv',
- killMonster:'Gzo',seededFloat:'ni',bonusSalt:'czo',maxHit:'el',
+const exports={
+ world:'X',monsters:'Il',gear:'as',predict:'pS',offline:'Hq',startFight:'Sv',startWork:'mh',
+ tick:'HMo',killMonster:'Gzo',seededFloat:'ni',bonusSalt:'czo',hotSkill:'OT',
+ upgradeResult:'pb',upgradeRecipes:'$m',startUpgrade:'R3o',itemSupportsRarity:'hb',itemEnhancementLimit:'li',
+ enhanceCost:'yc',enhanceChance:'mH',enhanceXp:'AVo',enhanceTicks:'ed',skillPetChance:'QO',
+ enhanceProtectedFailTo:'Dm',enhancePityChance:'xVo',enhancePityActive:'gv',enhanceRules:'qs',
 };
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'dvi-native-audit-'));
 try{
- const {engine:native}=await loadNative(directory,'native.mjs','vendor/manifest.json','vendor/game-original.js',exports);
- const {engine:nativeCombat,version:combatVersion}=await loadNative(directory,'combat.mjs','vendor/combat-manifest.json','vendor/game-combat-1225.js',combatExports);
- assert.deepEqual(nativeCombat.world,combatGame.world);assert.deepEqual(nativeCombat.monsters,combatGame.monsters);
+ const {engine:native,version}=await loadNative(directory,'native.mjs','vendor/manifest.json','vendor/game-original.js',exports);
  assert.deepEqual(native.world,game.world);assert.deepEqual(native.monsters,game.monsters);
+ const rarityVariants=id=>native.itemSupportsRarity(id)?[0,1,2,3,4]:[0];
+ const gearLevels=id=>{
+  const cap=native.itemEnhancementLimit(id);
+  return [...new Set([0,Math.min(17,cap),cap])];
+ };
  let tokenCases=0,upgradeEncodingCases=0;
  for(const shrine of [0,20,50])for(const worldRare of [0,.25,10000])for(let seed=0;seed<64;seed++){
   const state=preset('ranged');state.gear.amulet={id:0,tier:0,plus:0};state.brews.hunter=-1;state.manual.blessing=false;state.manual.hotSetting='off';state.manual.worldRarity=worldRare*100;state.house.shrine=shrine;
   const monster={...game.monsters[0],bonus:{...game.monsters[0].bonus,chance:.5}};
   const {player,context}=createScenario(state,monster,{seed});
-  const tick=START_TICK+1,roll=nativeCombat.seededFloat(seed,context.secretAt,nativeCombat.bonusSalt,player.id,1,tick),chance=Math.min(1,.5*(1+worldRare+.005*shrine)),events=[];
-  nativeCombat.killMonster(player,context,monster,tick,events);
+  const tick=START_TICK+1,roll=native.seededFloat(seed,context.secretAt,native.bonusSalt,player.id,1,tick),chance=Math.min(1,.5*(1+worldRare+.005*shrine)),events=[];
+  native.killMonster(player,context,monster,tick,events);
   assert.equal(events.some(e=>e.kind==='bonus'),roll<chance);tokenCases++;
  }
- for(const upgrade of native.upgradeRecipes)for(const from of upgrade.from)for(let tier=0;tier<5;tier++)for(const plus of [0,17,100]){
+ for(const upgrade of native.upgradeRecipes)for(const from of upgrade.from)for(const tier of rarityVariants(from))for(const plus of gearLevels(from)){
   const target=upgrade.to[upgrade.from.indexOf(from)];
   assert.equal(native.upgradeResult(upgrade,game.encode(game.withRarity(from,tier),plus)),game.encode(game.withRarity(target,tier),plus));upgradeEncodingCases++;
  }
@@ -71,17 +75,17 @@ try{
  function compare(state,monster){
   state.manual.simulationHours=1;state.manual.hotSetting='off';
   const {player,context,durationTicks}=createScenario(state,monster,{seed:314});
-  const nativeContext={...context,world:nativeCombat.world};
-  const zone=nativeCombat.world.zones.find(z=>z.monsterId===monster.id);
+  const nativeContext={...context,world:native.world};
+  const zone=native.world.zones.find(z=>z.monsterId===monster.id);
   let prepared;
-  nativeCombat.predict(player,nativeContext,p=>{prepared=p;return false;});
-  assert.ok(nativeCombat.startFight(prepared,nativeContext,zone.id));
+  native.predict(player,nativeContext,p=>{prepared=p;return false;});
+  assert.ok(native.startFight(prepared,nativeContext,zone.id));
   prepared.offlineCapTicks=durationTicks*2;
   const expected={kills:0,deaths:0,bySkill:{}};
   let elapsedTicks=0;
   do{
    elapsedTicks+=100;
-   const report=questlessOffline(nativeCombat,prepared,nativeContext,START_TICK+elapsedTicks);
+   const report=questlessOffline(native,prepared,nativeContext,START_TICK+elapsedTicks);
    expected.kills+=report.kills;expected.deaths+=report.deaths;
    for(const [skill,{xp}]of Object.entries(report.skills))if(xp)expected.bySkill[skill]=(expected.bySkill[skill]??0)+xp;
   }while(elapsedTicks<durationTicks&&!expected.deaths&&prepared.route!==null);
@@ -98,12 +102,22 @@ try{
  }
  for(const [style,weapon,helmet] of [['melee',884,881],['ranged',889,886],['magic',894,891]]){
   const state=preset(style);state.gear.weapon={id:weapon,tier:4,plus:40};state.gear.helmet={id:helmet,tier:4,plus:40};state.gear.earring={id:980,tier:4,plus:25};
-  for(const monster of combatGame.monsters)compare(state,monster);
+  for(const monster of game.monsters)compare(state,monster);
  }
- const relicGear=combatGame.encodeRelics(combatGame.encode(combatGame.withRarity(919,4),20),2200);
- assert.deepEqual(combatGame.gear(relicGear),nativeCombat.gear(relicGear));
- for(const id of [629,630,631,632,633,634,635])for(let tier=0;tier<5;tier++)for(const plus of [0,17,100]){
-  const encoded=game.encode(game.withRarity(id,tier),plus);assert.deepEqual(game.gear(encoded),native.gear(encoded));
+ let gearVariants=0;
+ for(const id of [919,921,947,977]){
+  const progress=game.unfinishedGear(id);
+  for(const relics of [0,1,Math.min(2200,progress.relics)]){
+   const encoded=game.encodeRelics(game.encode(game.withRarity(id,4),17),relics);
+   assert.deepEqual(game.gear(encoded),native.gear(encoded));gearVariants++;
+   if(relics===0){
+    const source=game.gear(game.encode(game.withRarity(progress.from,4),17));
+    assert.deepEqual(['accuracy','strength','defence'].map(key=>game.gear(encoded)[key]),['accuracy','strength','defence'].map(key=>source[key]));
+   }
+  }
+ }
+ for(const id of [629,630,631,632,633,634,635,881,884,904,980,989])for(const tier of rarityVariants(id))for(const plus of gearLevels(id)){
+  const encoded=game.encode(game.withRarity(id,tier),plus);assert.deepEqual(game.gear(encoded),native.gear(encoded));gearVariants++;
  }
  let gatheringCount=0;
  for(const geared of [false,true])for(const job of gatheringJobs){
@@ -150,25 +164,31 @@ try{
    assert.equal(actual.xp,scenario.player.skills[job.skill]-before);assert.deepEqual(actual.sampleItems,report.itemsGained);craftingCount++;
   }
  }
- let costs=0;for(const id of [629,630,631,632,633,634,635])for(let tier=0;tier<5;tier++)for(const plus of [0,17,100]){
+ let costs=0;for(const id of [629,630,631,632,633,634,635,881,884,904,980,989])for(const tier of rarityVariants(id))for(const plus of gearLevels(id)){
   const encoded=game.encode(game.withRarity(id,tier),plus);assert.deepEqual(game.enhanceCost(encoded),native.enhanceCost(encoded));costs++;
  }
  let enhancementCases=0;
  assert.equal(native.enhanceTicks,4);assert.equal(native.skillPetChance('enhancing'),1/3e6);
- for(const item of enhanceableItems)for(let tier=0;tier<5;tier++)for(const [level,mastery,lectern]of [[1,0,0],[99,200,7]]){
-  const state={...enhancementDefaults(),itemId:item.id,tier,level,mastery,lectern,target:20};
+ const pityLimit=Math.ceil(native.enhanceRules.pityMaxLift/native.enhanceRules.pityStep);
+ for(const item of enhanceableItems)for(const tier of rarityVariants(item.id))for(const [level,mastery,lectern,protect,useCore]of [[1,0,0,false,false],[99,200,7,true,true]]){
+  const target=native.itemEnhancementLimit(item.id);
+  const state={...enhancementDefaults(),itemId:item.id,tier,level,mastery,lectern,target,protect,useCore};
   const player={skills:{enhancing:game.levelXp(level)},masteries:{enhance:mastery},house:{lectern},houseFurniture:lectern?{lectern:{cell:0,slot:0}}:{},brews:{},lastTick:0};
   for(const step of enhancementSteps(state)){
-   const id=game.withRarity(item.id,tier),cost=native.enhanceCost(game.encode(id,step.from));
-   assert.equal(step.chance,native.enhanceChance(player,step.from));
-   assert.equal(step.gold,cost.gold);assert.equal(step.shards,cost.shards);
+   const id=game.withRarity(item.id,tier),withCore=useCore&&native.enhanceChance(player,step.from)<1;
+   const cost=native.enhanceCost(game.encode(id,step.from),withCore);
+   const chance=native.enhanceChance(player,step.from,withCore),protectedStep=protect&&step.from>=state.protectFrom;
+   const chances=native.enhancePityActive(step.from)?Array.from({length:pityLimit+1},(_,failures)=>native.enhancePityChance(chance,failures)):[chance];
+   assert.equal(step.chance,chances[0]);assert.deepEqual(step.chances,chances);
+   assert.equal(step.failTo,native.enhanceProtectedFailTo(step.from,protectedStep));
+   assert.deepEqual({gold:step.gold,shards:step.shards,essence:step.essence,core:step.core},cost);
    assert.equal(step.xp,native.enhanceXp(player,{windows:[]},0,id,step.from));enhancementCases++;
   }
  }
  const schedule=forecast(Date.UTC(2026,9,13));for(const entry of [schedule.current,...schedule.entries])assert.deepEqual(entry,native.hotSkill(entry.from));
- if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify({tokenCases,upgradeEncodingCases,predictions:count,gearVariants:105,gatheringSites:gatheringCount,craftingCases:craftingCount,upgradeCases:upgradeCount,enhancementCosts:costs,enhancementCases,forecastSlots:49})+'\n');
+ if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify({tokenCases,upgradeEncodingCases,predictions:count,gearVariants,gatheringSites:gatheringCount,craftingCases:craftingCount,upgradeCases:upgradeCount,enhancementCosts:costs,enhancementCases,forecastSlots:49})+'\n');
  console.log(`Token drops: ${tokenCases} seeded cases matched manual shrine/world probabilities; ${upgradeEncodingCases} upgrade encodings preserved rarity and enhancement.`);
- console.log(`Enhancing: ${enhancementCases} item/rarity/level/mastery/plus cases matched independent native chance, costs and XP; duration and pet chance matched.`);
+ console.log(`Enhancing: ${enhancementCases} item/rarity/level/mastery/plus cases matched independent native chance, pity, rollback, costs and XP; duration and pet chance matched.`);
  console.log(`Other pages: ${gatheringCount} gathering sites, ${craftingCount} ordinary recipe/quality cases, ${upgradeCount} upgrade/quality cases, ${costs} enhancement costs and 49 forecast slots matched independent native code.`);
- console.log(`Native ${combatVersion} combat comparison: ${count}/${count} one-hour simulations matched independent offline reports; geometry, monsters and completed/unfinished gear extraction matched.`);
+ console.log(`Native ${version} combat comparison: ${count}/${count} one-hour simulations matched independent offline reports; geometry, monsters and ${gearVariants} gear variants matched.`);
 }finally{fs.rmSync(directory,{recursive:true});}

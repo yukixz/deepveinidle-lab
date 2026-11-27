@@ -13,7 +13,7 @@ import {enhancementDefaults,enhancementStorageKey} from '../src/enhancement.js';
 import {masteryDefaults,masteryStorageKey} from '../src/mastery.js';
 import {craftingDefaults} from '../src/crafting-model.js';
 import {translatedItemName} from '../src/i18n.js';
-import {priceDefaults,setItemPrice} from '../src/item-prices.js';
+import {priceDefaults,setItemPrice,lockItemPrices} from '../src/item-prices.js';
 
 const args=process.argv.slice(2),option=name=>args.includes(name)?args[args.indexOf(name)+1]:null;
 const output=path.resolve(option('--out')??'.test-artifacts/upstream-1212/browser');
@@ -35,7 +35,7 @@ try{
   const state=preset('ranged');state.manual.simulationHours=1;state.manual.enemySelection='monster-11';state.manual.hotSetting='off';
   state.gear.amulet={id:357,tier:4,plus:17};
   const craft=craftingDefaults();craft.skill='smithing';craft.simulationHours=1;craft.levels.smithing=99;craft.levels.crafting=99;
-  const prices=setItemPrice(priceDefaults(),700,50);prices.preferences.autoImport=false;
+  const prices=lockItemPrices(setItemPrice(priceDefaults(),700,50),[700],true).state;prices.preferences.autoImport=false;
   await context.addInitScript(({state,craft,key,language,prices})=>{
    if(!localStorage.getItem('dvi-simulator-v1'))localStorage.setItem('dvi-simulator-v1',JSON.stringify({language,state}));if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,build:craft}));
    if(!localStorage.getItem('dvi-item-prices-v1'))localStorage.setItem('dvi-item-prices-v1',JSON.stringify(prices));
@@ -50,9 +50,19 @@ try{
    await field('earring.id').selectOption('980');
    assert.equal(await field('earring.plus').getAttribute('max'),'25');
    await field('body.id').selectOption('924');
+   assert.equal(await field('body.relics').getAttribute('min'),'1');
    assert.equal(await field('body.relics').getAttribute('max'),'5000');
+   for(const value of ['0','']){
+    await field('body.relics').fill(value);
+    await field('body.relics').press('Tab');
+    assert.equal(await field('body.id').inputValue(),'924');
+    assert.equal(await field('body.relics').inputValue(),'1');
+   }
    await field('body.relics').fill('2200');
    await field('body.relics').press('Tab');
+   await field('body.relics').fill('');
+   await field('body.relics').press('Tab');
+   assert.equal(await field('body.relics').inputValue(),'2200');
    await page.reload();
    assert.equal(await field('weapon.plus').inputValue(),'40');
    assert.equal(await field('earring.id').inputValue(),'980');
@@ -66,7 +76,7 @@ try{
    await page.waitForFunction(()=>document.querySelector('#rows tr[data-enemy]')&&!document.querySelector('#rows td.hourly-muted'));
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
    await page.screenshot({path:path.join(output,`combat-1225-${language}-${width}.png`),fullPage:true});
-   result.cases.push(`Combat 1.0.1225 ${language} ${width}`);
+   result.cases.push(`Combat 1.0.1228 ${language} ${width}`);
    await context.close();
    continue;
   }
@@ -221,7 +231,7 @@ try{
   const highScreenshot=`enhance-existing-${language}-${width}.png`;await page.screenshot({path:path.join(output,highScreenshot),fullPage:true});
   await page.locator('#enhance-home-settings').evaluate(el=>el.open=true);await page.locator('#enhance-mastery-settings').evaluate(el=>el.open=true);
   await page.locator('[data-enhance-field="current"]').fill('0');await page.locator('[data-enhance-field="current"]').dispatchEvent('change');await target.fill('1');await lectern.fill('0');await mastery.fill('0');
-  assert.equal(await page.locator('.enhance-inputs .stat').nth(4).locator('strong').innerText(),language==='zh'?'2.4 秒':'2.4 s');
+  assert.equal(await page.locator('.enhance-inputs .stat').last().locator('strong').innerText(),language==='zh'?'2.4 秒':'2.4 s');
   const masteryState=masteryDefaults();masteryState.totalPoints=100000;masteryState.current.enhance=200;masteryState.target.enhance=200;
   await page.evaluate(({key,state})=>localStorage.setItem(key,JSON.stringify(state)),{key:masteryStorageKey,state:masteryState});
   await page.goto(base+'/mastery');

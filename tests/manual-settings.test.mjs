@@ -1,4 +1,4 @@
-import {startFight as startCombat} from '../src/upstream-combat.js';
+import {startFight as startCombat} from '../src/upstream.js';
 import {nativeDay} from './native-day.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';

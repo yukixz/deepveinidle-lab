@@ -383,3 +383,16 @@ test('fast gathering counts the two fishing rarity windows once',()=>{
  const score=hotSetting=>optimizeMastery({...raw,gathering:{...raw.gathering,hotSetting}}).plans[0].stats.mean;
  assert.ok(Math.abs(score('game')/score('off')-(1+.25/24))<.0001);
 });
+
+test('both mastery modes value retained dungeon keys with the same frozen price inputs',()=>{
+ const raw=gatheringInput('gatherIncome',0);
+ Object.assign(raw.gathering,{ironman:true,discardGathered:true});
+ const input=optimizerInput(raw),ids=optimizerIncomeItems(input);
+ assert.ok(ids.includes(909));
+ assert.ok(!ids.includes(910));
+ const prices=Object.fromEntries(ids.map(id=>[id,{price:id===909?10:0}]));
+ for(const workMode of ['fast','standard']){
+  const result=optimizeMastery({...raw,prices,workMode});
+  assert.ok(result.plans[0].stats.mean>0,workMode);
+ }
+});

@@ -1,4 +1,4 @@
-import * as game from './upstream-combat.js';
+import * as game from './upstream.js';
 
 const UINT32_RANGE=2**32;
 const add=(items,id,qty)=>{if(qty>0)items[id]=(items[id]??0)+qty;};

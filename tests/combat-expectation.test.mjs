@@ -2,7 +2,7 @@ import {questlessTick} from '../scripts/native-questless.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {preset,defaults} from '../src/model.js';
-import * as game from '../src/upstream-combat.js';
+import * as game from '../src/upstream.js';
 import {createScenario,simulateMonster,START_TICK} from '../src/simulation.js';
 import {rarityProbabilities,expectedGold,createCombatExpectation} from '../src/combat-expectation.js';
 import {valueCombatRewards} from '../src/item-prices.js';

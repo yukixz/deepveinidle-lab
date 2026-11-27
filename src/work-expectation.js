@@ -1,5 +1,5 @@
 import * as game from './upstream.js';
-import {toolSlots} from './gathering-model.js';
+import {gatheringSkills,toolSlots} from './gathering-model.js';
 import {rarityProbabilities} from './combat-expectation.js';
 
 export function addExpected(items,id,quantity){
@@ -18,10 +18,22 @@ export function beforeWork(player,job,tick){
 
 export function workQualities(player,context,job,tick,{bonus=false}={}){
  if(job.plain&&!bonus)return [1];
+ return rarityProbabilities(workRarityMultiplier(player,context,job,tick));
+}
+
+function workRarityMultiplier(player,context,job,tick){
  const equipped=player.equipment[toolSlots[job.skill]];
  const luck=(equipped==null?0:game.toolLuck(equipped))+game.equipmentLuck(player.equipment);
- const multiplier=(1+luck)*game.combine(game.windowModifiers(context.windows,tick).rarityMult,game.brewRarityMultiplier(player),game.hotRarityMultiplier(tick,job.skill,context.hypothetical),game.houseRarityMultiplier(player),game.masteryMultiplier(player.masteries,'rare'));
- return rarityProbabilities(multiplier);
+ return (1+luck)*game.combine(game.windowModifiers(context.windows,tick).rarityMult,game.brewRarityMultiplier(player),game.hotRarityMultiplier(tick,job.skill,context.hypothetical),game.houseRarityMultiplier(player),game.masteryMultiplier(player.masteries,'rare'));
+}
+
+export function expectedDungeonKeys(write,player,context,job,tick,successfulActions=1){
+ if(!gatheringSkills.includes(job.skill)||job.inputs.length!==0)return;
+ const {finds}=game.dungeonKeyTier(job.levelReq);
+ const baseTicks=game.dungeonKeyBaseTicks(job,player.skills[job.skill]);
+ const rarity=workRarityMultiplier(player,context,job,tick);
+ const bonus=1+game.worldEarringBonus(player.equipment,'keyfinder');
+ for(const find of finds)write(find.itemId,successfulActions*Math.min(1,game.dungeonKeyChance(find,baseTicks,rarity)*bonus));
 }
 
 export function expectedWorkExtras(write,player,job,actionTicks){
@@ -38,10 +50,10 @@ export function expectedWorkRewards(target,player,context,job,tick,before,produc
  if(!produced)return; // Burns and catches return before every reward check.
  const write=typeof target==='function'?target:(id,qty)=>addExpected(target,id,qty);
  expectedWorkExtras(write,player,job);
+ expectedDungeonKeys(write,player,context,job,tick);
  if(!job.bonus)return;
  if(!before?.pack)throw Error('missingWorkState');
- // addPack only reads pack and perks.pockets; retain its original capacity rule.
- const atBonus={perks:player.perks,pack:before.pack.map(i=>({...i}))};
+ const atBonus={equipment:player.equipment,perks:player.perks,pack:before.pack.map(i=>({...i}))};
  // Reconstruct the exact pack after material consumption and the sampled main
  // product, before bonus/pet insertion. Mounts and boxes go directly to storage.
  for(const input of game.recipeInputs(job,player.workRarity)){
@@ -54,7 +66,7 @@ export function expectedWorkRewards(target,player,context,job,tick,before,produc
  qualities.forEach((p,tier)=>{
   const quality=game.bonusMinimumUncommon(job.bonus.itemId)?Math.max(1,tier):tier;
   const id=game.itemSupportsRarity(job.bonus.itemId)?game.withRarity(job.bonus.itemId,quality):job.bonus.itemId;
-  const candidate={perks:atBonus.perks,pack:atBonus.pack.map(i=>({...i}))};
+  const candidate={...atBonus,pack:atBonus.pack.map(i=>({...i}))};
   if(game.addPack(candidate,id,1))write(id,job.bonus.chance*p);
  });
 }

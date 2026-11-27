@@ -8,10 +8,11 @@ import {translatedName} from '../src/i18n.js';
 import {createScenario,simulationTick} from '../src/simulation.js';
 
 const fireworks=craftingJobs.filter(j=>Number(j.id)>=420&&Number(j.id)<=424);
-test('1196 effective item and recipe catalogues remain available',()=>{
- assert.equal(game.items.length,1489);assert.equal(game.recipes.length,227);
+test('Reviewed item and recipe catalogues retain the Moon box and filter ordinary crafting',()=>{
+ assert.equal(game.items.length,2113);assert.equal(game.recipes.length,241);
  assert.equal(game.item(397).name,'Moon box');assert.equal(game.vendorPrice(397),10);assert.equal(game.marketFamily(397),'valuables');
- assert.equal(craftingJobs.filter(j=>!j.upgrade).length,177);assert.equal(game.upgradeRecipes.length,27);
+ assert.equal(craftingJobs.filter(j=>!j.upgrade).length,191);
+ assert.equal(game.upgradeRecipes.length,74);assert.equal(craftingJobs.filter(j=>j.upgrade).length,27);
 });
 
 test('1196 fireworks preserve native inputs, output quantity and supported rarities',()=>{

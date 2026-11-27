@@ -37,7 +37,7 @@ function refreshStatus(){
 function hasFilters(){return categoryFilter!=='all'||query.trim()!==''||tier!=='all'||plus!==0||filter!=='all';}
 function candidates(){
  if(!hasFilters())return [];
- const s=priceState(),q=query.trim().toLowerCase(),level=plus??0,ids=new Set(game.items.filter(i=>i.id===game.baseItemId(i.id)&&itemFamily(i.id)&&game.canSell(i.id)).map(i=>i.id));
+ const s=priceState(),q=query.trim().toLowerCase(),level=plus??0,ids=new Set(game.items.filter(i=>i.id===game.baseItemId(i.id)&&itemFamily(i.id)&&(game.canSell(i.id)||game.canTradeItem(i.id))).map(i=>i.id));
  for(const key of [...Object.keys(s.prices),...Object.keys(s.quotes)])ids.add(Number(key));
  for(const id of [...ids]){
   const base=game.baseItemId(id);for(const t of tier==='all'?[0,1,2,3,4]:[Number(tier)]){
@@ -48,14 +48,14 @@ function candidates(){
   const base=game.item(game.baseItemId(id)),p=s.prices[id];
   if(categoryFilter!=='all'&&itemCategory(id)!==categoryFilter)return false;
   if(tier!=='all'&&game.itemTier(id)!==Number(tier))return false;
-  if(plus!==null&&Math.floor(id/game.encode(0,1))!==plus)return false;
+  if(plus!==null&&game.itemEnhancement(id)!==plus)return false;
   if(filter==='locked'&&!p?.locked||filter==='unpriced'&&p?.price!=null)return false;
   return !q||`${base.name} ${translatedName(base.name,'zh')} ${id}`.toLowerCase().includes(q);
  }).sort((a,b)=>game.baseItemId(a)-game.baseItemId(b)||a-b);
 }
 const quoteText=q=>!q?text('未读取','Not read'):`${q.invalid?text('异常','Invalid'):q.value===null?text('无报价','No quote'):number(q.value)}`;
 const quantityText=(item,key)=>({unread:text('未读取','Not read'),invalid:text('异常','Invalid')})[item.market.status[key]]??number(item[key]);
-function row(id){const s=priceState(),p=s.prices[id],q=s.quotes[id],base=game.item(game.baseItemId(id)),name=translatedName(base.name,language),t=game.itemTier(id),enhance=Math.floor(id/game.encode(0,1));
+function row(id){const s=priceState(),p=s.prices[id],q=s.quotes[id],base=game.item(game.baseItemId(id)),name=translatedName(base.name,language),t=game.itemTier(id),enhance=game.itemEnhancement(id);
  const item=getItem(id);
  const source={manual:text('手动','Manual'),avg7d:text('7天平均成交价格','7-day average trade price'),avg30d:text('30天平均成交价格','30-day average trade price'),ask:text('卖单','Ask'),bid:text('买单','Bid'),vendor:text('商人价','Vendor price')}[p?.source];
  return `<tr><td><input type="checkbox" data-price-select="${id}" aria-label="${esc(text('选择 ','Select ')+name+' · '+rarity()[t]+' +'+enhance)}" ${selected.has(id)?'checked':''}></td><td><strong>${esc(name)}·${rarity()[t]}${enhance?' +'+enhance:''}</strong><small>${id}</small></td><td><input type="number" min="0" max="${Number.MAX_SAFE_INTEGER}" step="any" data-price-value="${id}" aria-label="${esc(name+' '+text('单价','unit price'))}" value="${p?.price??''}" placeholder="${text('未定价','Unpriced')}"><small>${source??'—'}</small></td><td><input type="checkbox" data-price-lock="${id}" aria-label="${esc(text('锁定 ','Lock ')+name)}" ${p?.locked?'checked':''}></td><td>${item.vendorPrice===null?'—':number(item.vendorPrice)}</td><td>${quoteText(q?.ask)}</td><td>${quantityText(item,'sellQuantity')}</td><td>${quoteText(q?.bid)}</td><td>${quantityText(item,'buyQuantity')}</td><td>${quoteText(q?.avg7d)}</td><td>${quoteText(q?.avg30d)}</td></tr>`;

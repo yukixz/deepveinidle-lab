@@ -5,7 +5,7 @@ import {gatheringJobs} from './gathering-model.js';
 
 export const masteryResultStorageKey='dvi-mastery-results-v1';
 // Bump when simulation, search, valuation, or upstream rules change incompatibly.
-export const masteryResultEngine='mastery-1/game-1.0.1221/combat-1.0.1225';
+export const masteryResultEngine='mastery-1/game-1.0.1228';
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const integer=v=>Number.isSafeInteger(v)&&v>=0;
 const number=v=>(typeof v==='number'||typeof v==='string'&&v.trim()!=='')?Number(v):NaN;

@@ -1,5 +1,5 @@
 import {potions} from './model.js';
-import * as game from './upstream-combat.js';
+import * as game from './upstream.js';
 // Scope: static combat and independent combat routes, without gathering/crafting.
 // Keep upstream data and saved fields intact; filter only the settings shown.
 export const combatPotions=potions.filter(p=>p.kind!=='gatherer');

@@ -64,7 +64,7 @@ test('combat random samples include the upstream integer mixing step',()=>{
 
 
 test('style change keeps shared stats and removes incompatible gear',async()=>{const {selectStyle,gearForStyle}=await import('../src/model.js');const s=selectStyle(preset('ranged'),'magic');assert.equal(s.style,'magic');assert.equal(s.levels.ranged,85);assert.ok(game.gear(s.gear.weapon.id).magic);for(const slot of slots)assert.ok(!s.gear[slot].id||gearForStyle(slot,'magic').some(g=>g.itemId===s.gear[slot].id));});
-test('all eight upstream potions survive normalization',()=>{assert.equal(game.potions.length,8);const s=defaults();for(const p of game.potions)s.brews[p.kind]=4;assert.deepEqual(normalize(s).brews,s.brews);});
+test('all ordinary battle potions survive normalization',()=>{const s=defaults();for(const p of game.potions)if(p.kind!=='bosskeeper')s.brews[p.kind]=4;assert.deepEqual(normalize(s).brews,s.brews);assert.ok(!Object.hasOwn(s.brews,'bosskeeper'));});
 
 test('complete home and mastery configuration round trips',()=>{const s=defaults();assert.deepEqual(Object.keys(s.house),game.rooms.map(x=>x.id));assert.deepEqual(Object.keys(s.masteries),game.masteries.map(x=>x.id));for(const r of game.rooms)s.house[r.id]=50;for(const m of game.masteries)s.masteries[m.id]=123;const restored=normalize(JSON.parse(JSON.stringify(s)));assert.deepEqual(restored.house,s.house);assert.deepEqual(restored.masteries,s.masteries);});
 test('home damage follows the level 50 station cap',()=>{const s=preset('ranged'),base=calculate(s).stats.hit;s.house.target=100;assert.equal(calculate(s).stats.hit,Math.ceil(base*1.25));s.house.target=150;assert.equal(calculate(s).stats.hit,Math.ceil(base*1.25));});

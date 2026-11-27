@@ -1,3 +1,4 @@
+import {itemRelics} from './upstream.js';
 import {validItemId,itemFamily,validPrice} from './item-prices.js';
 
 export const marketPricesUrl='https://deepveinidle.com/api/market/prices.json';
@@ -8,7 +9,7 @@ export function parseMarketPrices(raw){
  const quotes={};let invalid=0;
  for(const [key,item]of Object.entries(raw.items)){
   const id=Number(key);
-  if(String(id)!==key||!validItemId(id)||!itemFamily(id)||!record(item)){invalid++;continue;}
+  if(String(id)!==key||!validItemId(id)||itemRelics(id)!==0||!itemFamily(id)||!record(item)){invalid++;continue;}
   const quote={};
   for(const [side,field,quantityField]of [['ask','lowestSell','sellQty'],['bid','highestBuy','buyQty'],['avg7d','avg7d'],['avg30d','avg30d']]){
    const value=item[field];

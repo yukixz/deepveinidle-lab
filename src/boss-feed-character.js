@@ -1,4 +1,6 @@
 import {bossFeedRules as game} from './upstream.js';
+import * as upstream from './upstream.js';
+import {workStrideSpeed} from './work-config-effects.js';
 import {characterMasteries} from './character-masteries.js';
 import {validItemId} from './item-prices.js';
 import {readWorldBuffs} from './world-buffs.js';
@@ -11,9 +13,9 @@ export const toolSlots = {
 const gathering = new Set(['mining','fishing','woodcutting','farming','thieving']);
 const skills = Object.keys(toolSlots);
 const toolSlotSet = new Set(Object.values(toolSlots));
-export const sharedEquipmentSlots = ['shield','mount','helmet','body','legs'];
+export const sharedEquipmentSlots = ['shield','mount','helmet','body','legs','earring'];
 const outfitSlots = new Set(['helmet','body','legs']);
-export const potionKinds = ['gatherer','swift','elixir'];
+export const potionKinds = ['gatherer','swift','elixir','bosskeeper'];
 const slots = [...toolSlotSet, ...sharedEquipmentSlots];
 const capPerk = key => game.perkList.find(perk => perk.id === key).ranks;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -30,8 +32,12 @@ function equipmentInSlot(slot, value) {
   if (!validItemId(value)) return false;
   const equipment = toolSlotSet.has(slot) || slot === 'mount' ? game.tool(value) : game.gear(value);
   if (equipment?.slot !== slot) return false;
+  const base = game.decodeBase(value);
+  if (upstream.itemEnhancement(value) > equipmentEnhancementLimit(base)) return false;
   if (slot === 'shield') return !!equipment.offhand;
+  if (slot === 'earring') return base === upstream.earringIds.bosskeeper;
   if (outfitSlots.has(slot)) {
+    if (slot === 'body' && base === upstream.packmasterCoatId) return true;
     return game.rawBosses.some(boss => game.outfitContribution({[slot]:value}, boss.key) > 0);
   }
   return true;
@@ -54,7 +60,7 @@ export function normalizeCharacter(raw = {}) {
   }
   for (const kind of potionKinds) {
     const tier = raw.brews?.[kind];
-    brews[kind] = integer(tier, -1, 4) ? tier : -1;
+    brews[kind] = integer(tier, -1, kind === 'bosskeeper' ? 0 : 4) ? tier : -1;
   }
   for (const room of roomsFor(skills)) {
     const value = raw.house?.[room.id];
@@ -112,9 +118,7 @@ export function createCharacterContext(input) {
     const actor = actorFor(skill);
     let speedMultiplier = game.workSpeed(actor, skill).combined;
     if (farmingFeed && skill === 'farming') speedMultiplier *= 1 + game.sideSkillBonus(actor.equipment, skill);
-    const strideSpeed = Math.round(game.mountStride(actor) *
-      (1 + game.swiftSpeedBonus * game.brewStrength(actor, 'swift')) *
-      game.masteryMultiplier(actor.masteries, 'move'));
+    const strideSpeed = workStrideSpeed(actor);
     return {
       skills:{
         ...Object.fromEntries(Object.entries(config.levels).map(([name, level]) => [name, {level}])),
@@ -140,6 +144,7 @@ function potionTier(player, kind) {
   const until = player.brews[kind] ?? 0;
   if (!integer(until)) return undefined;
   if (until <= player.lastTick) return -1;
+  if (kind === 'bosskeeper') return 0;
   const buckets = player.brewBuckets?.[kind];
   if (buckets === undefined) return player.brewTier?.[kind] ?? 0;
   if (!Array.isArray(buckets) || buckets.length !== 5 || !buckets.every(value => integer(value))) return undefined;
@@ -182,8 +187,11 @@ export function importLabCharacter(snapshot, previous, selectedSkills = skills, 
   }
   for (const slot of [...usedSkills.map(skill => toolSlots[skill]), ...sharedEquipmentSlots]) {
     const value = player.equipment?.[slot];
+    if (slot === 'earring' && value === undefined) continue;
     const eligible = equipmentInSlot(slot, value);
-    const unrelated = (slot === 'shield' || outfitSlots.has(slot)) && validItemId(value) && game.gear(value)?.slot === slot;
+    const unrelated = (slot === 'shield' || slot === 'earring' || outfitSlots.has(slot)) &&
+      validItemId(value) && game.gear(value)?.slot === slot &&
+      upstream.itemEnhancement(value) <= equipmentEnhancementLimit(game.decodeBase(value));
     assign(`equipment.${slot}`, value === null || eligible || unrelated, () => config.equipment[slot] = eligible ? value : null);
   }
   for (const kind of potionKinds) {
@@ -240,3 +248,4 @@ export const decodeEquipment = id => id ? {
   base:game.decodeBase(id), tier:game.tier(id), plus:Math.floor(id / game.encode(0, 1)),
 } : {base:0, tier:0, plus:0};
 export const equipmentCanEnhance = id => !!id && game.canEnhance(id);
+export const equipmentEnhancementLimit = id => equipmentCanEnhance(id) ? upstream.itemEnhancementLimit(id) : 0;

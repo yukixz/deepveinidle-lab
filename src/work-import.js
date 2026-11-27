@@ -10,7 +10,8 @@ export function importWorkConfig(current,snapshot,{skills,slots,potions,rooms,ma
  const put=(field,value,check,set)=>{if(check(value))set(value);else warnings.push(field);};
  for(const k of skills)put(`skills.${k}`,p.skills?.[k],v=>valid(v),v=>s.levels[k]=game.level(v));
  for(const slot of slots){const id=p.equipment?.[slot];if(id===null){s.gear[slot]={id:0,tier:0,plus:0};continue;}
-  put(`equipment.${slot}`,id,v=>int(v,1)&&gear(slot,v)?.slot===slot&&int(game.itemTier(v),0,4)&&int(Math.floor(v/game.encode(0,1)),0,game.maxEnhancement),v=>s.gear[slot]={id:game.baseItemId(v),tier:game.itemTier(v),plus:Math.floor(v/game.encode(0,1))});
+  if(slot==='earring'&&id===undefined)continue;
+  put(`equipment.${slot}`,id,v=>int(v,1)&&gear(slot,v)?.slot===slot&&int(game.itemTier(v),0,4)&&int(game.itemEnhancement(v),0,game.itemEnhancementLimit(v)),v=>s.gear[slot]={id:game.baseItemId(v),tier:game.itemTier(v),plus:game.itemEnhancement(v)});
  }
  for(const {kind}of potions){
   if(!record(p.brews)||!int(p.brews[kind]??0)){warnings.push(`brews.${kind}`);continue;}

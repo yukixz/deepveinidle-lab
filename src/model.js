@@ -2,8 +2,7 @@ import {readGuild} from './guild.js';
 import {selectedEnemies} from './enemy-selection.js';
 import {manualDefaults,normalizeManual,skillXp,applyManualPlayer} from './manual-settings.js';
 import {restoreSkillMasteries,switchSkillMasteries} from './character-masteries.js';
-import * as game from './upstream-combat.js';
-import {enhanceMasteryMultiplier,masteryOfflineBaseHours,rooms} from './upstream.js';
+import * as game from './upstream.js';
 export * as game from './upstream.js';
 export const slots=['weapon','shield','helmet','body','legs','ring','amulet','earring','mount'];
 export const skills=['melee','ranged','magic','defence','hitpoints'];
@@ -20,7 +19,7 @@ export const gearDetails=(slot,id)=>slot==='mount'?game.tool(id):game.gear(id);
 export const gearRelicLimit=id=>game.unfinishedGear(id)?.relics??0;
 export const equippedItemId=({id,tier,plus,relics=0})=>game.encodeRelics(game.encode(game.withRarity(id,tier),plus),relics);
 export const gearEnhancementLimit=id=>game.canEnhance(id)?game.itemEnhancementLimit(id):0;
-export function defaults(){return {guild:null,manual:manualDefaults(),levels:{melee:1,ranged:1,magic:1,defence:1,hitpoints:10},gear:Object.fromEntries(slots.map(s=>[s,{id:0,tier:0,plus:0}])),food:{id:64,tier:0},eatAt:50,homeBank:0,fed:false,rooted:false,brews:Object.fromEntries(playerPotions.map(p=>[p.kind,-1])),masteries:Object.fromEntries(game.masteries.map(x=>[x.id,0])),house:Object.fromEntries(rooms.map(x=>[x.id,0])),meals:0};}
+export function defaults(){return {guild:null,manual:manualDefaults(),levels:{melee:1,ranged:1,magic:1,defence:1,hitpoints:10},gear:Object.fromEntries(slots.map(s=>[s,{id:0,tier:0,plus:0}])),food:{id:64,tier:0},eatAt:50,homeBank:0,fed:false,rooted:false,brews:Object.fromEntries(playerPotions.map(p=>[p.kind,-1])),masteries:Object.fromEntries(game.masteries.map(x=>[x.id,0])),house:Object.fromEntries(game.rooms.map(x=>[x.id,0])),meals:0};}
 const integer=(v,min,max,fallback=min)=>Number.isFinite(Number(v))?Math.min(max,Math.max(min,Math.floor(Number(v)))):fallback;
 export function normalize(raw){
  const s=defaults(); if(!raw||typeof raw!=='object')return s;
@@ -28,11 +27,13 @@ export function normalize(raw){
  s.manual=normalizeManual(raw.manual,{fractionalWorldXp:true});
  for(const k of skills)s.levels[k]=integer(raw.levels?.[k]??s.levels[k],1,game.maxLevel,s.levels[k]);
  for(const slot of slots){
-  const v=raw.gear?.[slot],id=integer(v?.id,0,999);
-  if(!baseGear.some(x=>x.itemId===id&&x.slot===slot))continue;
+  const v=raw.gear?.[slot],inputId=integer(v?.id,0,999);
+  if(!baseGear.some(x=>x.itemId===inputId&&x.slot===slot))continue;
+  const unfinished=game.unfinishedGear(inputId);
+  const relics=unfinished?integer(v.relics??0,0,unfinished.relics):0;
+  const id=unfinished&&relics===0?unfinished.from:inputId;
   const gear={id,tier:game.itemSupportsRarity(id)?integer(v.tier??0,0,4):0,plus:integer(v.plus??0,0,gearEnhancementLimit(id))};
-  const relics=gearRelicLimit(id);
-  if(relics>0)gear.relics=integer(v.relics??0,0,relics);
+  if(relics>0)gear.relics=relics;
   s.gear[slot]=gear;
  }
  if(foods.some(x=>x.id===Number(raw.food?.id)))s.food={id:Number(raw.food.id),tier:integer(raw.food.tier??0,0,4)};
@@ -47,8 +48,8 @@ export function normalize(raw){
  s.homeBank=game.world.banks.some(b=>b.id===Number(raw.homeBank))?Number(raw.homeBank):0;
  s.meals=integer(raw.meals??0,0,10);s.fed=raw.fed===true;s.rooted=raw.rooted===true;return s;
 }
-export function makePlayer(raw,engine=game){
- const s=normalize(raw),p={skills:Object.fromEntries(skills.map(k=>[k,skillXp(s,k)])),equipment:Object.fromEntries(engine.equipmentSlots.map(k=>[k,null])),lastTick:0,brews:{},brewTier:{},masteries:s.masteries,house:s.house,houseFurniture:{},perks:{meals:s.meals}},issues=[];
+export function makePlayer(raw){
+ const s=normalize(raw),p={skills:Object.fromEntries(skills.map(k=>[k,skillXp(s,k)])),equipment:Object.fromEntries(game.equipmentSlots.map(k=>[k,null])),lastTick:0,brews:{},brewTier:{},masteries:s.masteries,house:s.house,houseFurniture:{},perks:{meals:s.meals}},issues=[];
  for(const slot of slots){const v=s.gear[slot];if(!v.id||!(slot in p.equipment))continue;const id=equippedItemId(v),g=gearDetails(slot,id);
   if(!g){issues.push({kind:'missing',slot});continue;}
   if(g.style&&g.style!==game.style(p)){issues.push({kind:'style',slot});continue;}
@@ -86,5 +87,5 @@ export function sortEnemies(rows,key,direction=key==='level'?'asc':'desc',value=
 }
 
 // Storage keeps upstream ranks; UI shows effective values, preserving existing saves.
-export function masteryValue(id,rank){const m=game.masteries.find(x=>x.id===id);const bonus=id==='enhance'?enhanceMasteryMultiplier({masteries:{enhance:rank}})-1:rank*m.perRank;return Number((bonus*(m.unit==='percent'?100:masteryOfflineBaseHours)).toFixed(6));}
-export function masteryRank(id,value){const m=game.masteries.find(x=>x.id===id);return integer(Math.round(Number(value)/(m.perRank*(m.unit==='percent'?100:masteryOfflineBaseHours))),0,game.masteryRankLimit);}
+export function masteryValue(id,rank){const m=game.masteries.find(x=>x.id===id);const bonus=id==='enhance'?game.enhanceMasteryMultiplier({masteries:{enhance:rank}})-1:rank*m.perRank;return Number((bonus*(m.unit==='percent'?100:game.masteryOfflineBaseHours)).toFixed(6));}
+export function masteryRank(id,value){const m=game.masteries.find(x=>x.id===id);return integer(Math.round(Number(value)/(m.perRank*(m.unit==='percent'?100:game.masteryOfflineBaseHours))),0,game.masteryRankLimit);}

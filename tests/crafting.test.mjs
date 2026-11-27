@@ -15,7 +15,7 @@ function nativeResult(s,job,tier,count){
  return {player,report,xp:player.skills[job.skill]-xp};
 }
 test('five crafting skills, normalization and independent tools',()=>{
- assert.deepEqual(craftingSkills.map(s=>craftingJobs.filter(j=>j.skill===s).length),[8,71,40,8,77]);
+ assert.deepEqual(craftingSkills.map(s=>craftingJobs.filter(j=>j.skill===s).length),[8,74,43,8,85]);
  const d=craftingDefaults();
  const s=normalizeCrafting({...d,skill:'smithing',levels:{smithing:50},gear:{hammer:{id:365,tier:3,plus:5}}});
  const p=craftingPlayer(s).player;

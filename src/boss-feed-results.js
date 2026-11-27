@@ -6,7 +6,7 @@ const categories = {
   ore:['矿石','Ore'], bars:['金属锭','Metal bars'], coal:['煤','Coal'], raw:['生鱼','Raw fish'],
   cooked:['熟鱼','Cooked fish'], logs:['原木','Logs'], bows:['弓','Bows'], staves:['法杖','Staves'],
   crops:['作物','Crops'], draughts:['药剂','Draughts'], herbs:['草药','Herbs'], bolts:['布匹','Bolts of cloth'],
-  leather:['皮制品','Leather goods'], cloth:['布制品','Cloth goods'],
+  leather:['皮制品','Leather goods'], cloth:['布制品','Cloth goods'], essence:['首领精华','Boss essence'],
 };
 const reasons = {
   skillLevel:['缺少投喂技能等级','Missing feeding skill level'],
@@ -65,6 +65,7 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
     return row.reason ? t(...(reasons[row.reason] ?? ['估算资料缺失','Estimate unavailable'])) : '';
   };
   const name = item => named(item.name,item.englishName);
+  const feedingSkill = row => row.skill === null ? t('任一栏','Any bar') : skill(row.skill);
   const kindLabel = row => row.kind === 'craft' ? t('自制','Craft') : t('直购','Buy');
   const quality = row => `<span class="boss-rarity" data-rarity="${row.quality}">${rarity(row.quality)}</span>`;
 
@@ -99,7 +100,7 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
       <div class="boss-row-detail">
         <dl>${stats.map(([label,value]) => `<div><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join('')}</dl>
         <div><h3>${purchaseTitle}</h3>${materials(row)}
-          <p class="micro">${t('投喂经验','Feeding XP')} · ${escape(skill(row.skill))} ${number(feedXp)}</p>
+          <p class="micro">${t('投喂经验','Feeding XP')} · ${escape(feedingSkill(row))} ${number(feedXp)}</p>
           ${row.craftSkill ? `<p class="micro">${t('备料经验','Preparation XP')} · ${escape(skill(row.craftSkill))} ${number(row.craftXp)}</p>` : ''}</div>
         ${notes.length ? `<div class="boss-detail-notes">${notes.map(note => `<p class="death-note">${escape(note)}</p>`).join('')}</div>` : ''}
       </div></td></tr>`;
@@ -143,7 +144,7 @@ export function renderBossResults(host, {boss,language,rows,settings,sort,expand
     return `<tr data-boss-feed-row="${row.key}">
       <th scope="row"><button type="button" class="text-button boss-expand" data-expand="${row.key}" aria-expanded="${open}"${open ? ` aria-controls="boss-feed-detail-${row.key}"` : ''}><span aria-hidden="true">${open ? '▾' : '▸'}</span>
         <span><strong>${escape(name(row))}</strong> ${quality(row)}${marker ? `<small class="death-note" title="${escape(reasonText(row))}">${marker}</small>` : ''}</span></button></th>
-      <td>${escape(skill(row.skill))}</td><td>${kindLabel(row)}</td><td>${number(row.quantity)}</td>
+      <td>${escape(feedingSkill(row))}</td><td>${kindLabel(row)}</td><td>${number(row.quantity)}</td>
       <td class="column-highlight">${compact(row.totalGold)}</td><td>${time(row.totalSeconds)}</td>
       ${boss.skills.map(key => `<td>${compact(row.xpBySkill[key])}</td>`).join('')}
       </tr>${open ? detail(row,columns.length) : ''}`;

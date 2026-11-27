@@ -11,7 +11,7 @@ import {captureHarness,flushCapture} from './helpers/capture-harness.mjs';
 
 test('1208 exports live mastery and station caps rather than the legacy rank constant',()=>{
  const manifest=JSON.parse(fs.readFileSync('vendor/manifest.json'));
- assert.equal(manifest.changelogVersion,'1.0.1221');assert.deepEqual(manifest.overrides,[]);
+ assert.equal(manifest.changelogVersion,'1.0.1228');assert.deepEqual(manifest.overrides,[]);
  assert.equal(game.masteryRankLimit,200);assert.equal(game.houseLevelLimit,50);
  assert.ok(game.masteries.every(m=>m.maxRanks===200));
  for(const [create,read]of [[defaults,normalize],[gatheringDefaults,normalizeGathering],[craftingDefaults,normalizeCrafting]]){

@@ -97,11 +97,11 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .enhance-fees{grid-template-columns:repeat(4,minmax(0,1fr))}
 .enhance-fees .stat small{display:block;color:var(--muted);font-size:12px;margin-top:8px}
 .enhance-stats strong{font-size:24px;overflow-wrap:anywhere}
-.enhance-stats.enhance-inputs{grid-template-columns:repeat(6,minmax(0,1fr))}
+.enhance-stats.enhance-inputs{grid-template-columns:repeat(8,minmax(0,1fr))}
 .enhance-inputs .stat{padding:16px 12px}
 .enhance-inputs .stat:first-child{grid-column:span 2}
 .enhance-inputs strong{font-size:22px}
-@media(max-width:1199px){.enhance-stats.enhance-inputs{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1199px){.enhance-stats.enhance-inputs{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:740px){.enhance-stats.enhance-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .enhance-table td:first-child,.enhance-table th:first-child{text-align:left}
 .enhance-table td,.enhance-table th{text-align:right;white-space:nowrap}
@@ -120,7 +120,7 @@ header{gap:24px}.section-nav{display:flex;gap:8px;margin-right:auto}.header-righ
 .enhance-item-row>.number-field{align-self:end}
 @media(max-width:740px){.enhance-item-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
 
-@media(min-width:1200px){.enhance-level-row{grid-template-columns:repeat(4,minmax(0,1fr))}.enhance-price-row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:1200px){.enhance-level-row{grid-template-columns:repeat(4,minmax(0,1fr))}.enhance-price-row{grid-template-columns:repeat(5,minmax(0,1fr))}}
 .enhance-level-row select{width:100%;font-size:14px}
 
 .search-select{position:relative;min-width:0;margin-bottom:12px;font-size:12px}

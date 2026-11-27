@@ -3,6 +3,64 @@ import assert from 'node:assert/strict';
 import {exactCostDistribution,enhancementDistribution,enhancementPercentiles} from '../src/enhancement-distribution.js';
 import {calculateEnhancement,enhancementDefaults} from '../src/enhancement.js';
 const solve=(steps,start=0,options)=>exactCostDistribution(steps,start,options);
+
+test('high-step quantiles include changing pity chances and all per-attempt materials',()=>{
+ const s={...enhancementDefaults(),itemId:853,tier:0,current:20,target:21,shardPrice:1,scrollPrice:8,essencePrice:2,corePrice:25,useCore:true};
+ const result=calculateEnhancement(s),step=result.steps[20];
+ const attempt=step.gold+step.shards+step.essence*2+25;
+ const expected=[2,3,4].map(n=>attempt*n+(n-1)*8);
+ const q=enhancementDistribution(s,result).quantiles;
+ for(let i=0;i<q.length;i++)assert.ok(q[i].lowerPrice<=expected[i]&&expected[i]<=q[i].minPrice);
+});
+
+test('direct sticky-step quantiles retain an exact crossing close to the target probability',()=>{
+ const s={...enhancementDefaults(),itemId:853,tier:0,current:20,target:21,level:154,lectern:30,mastery:105,shardPrice:0,scrollPrice:0,essencePrice:0};
+ const result=calculateEnhancement(s),q=enhancementDistribution(s,result).quantiles[0];
+ assert.equal(q.minPrice,56490000);
+ assert.equal(q.lowerPrice,56490000);
+ assert.ok(q.actualProbability>.8&&q.actualProbability<.80000001);
+ const core={...s,level:147,lectern:47,mastery:199,useCore:true,corePrice:0};
+ const [,,q95]=enhancementDistribution(core,calculateEnhancement(core)).quantiles;
+ assert.equal(q95.minPrice,112980000);
+ assert.equal(q95.lowerPrice,112980000);
+});
+
+test('first-passage quantiles match chronological paths with simultaneous pity counters',()=>{
+ for(const [start,failLast]of [[1,1],[2,1],[1,0]]){
+  const steps=[{chances:[.85],gold:2,failTo:0,protected:false},{chances:[.51,.66,.8],gold:3,failTo:0,protected:false},{chances:[.48,.62,.77],gold:5,failTo:failLast,protected:failLast===1}]
+   .map(s=>({...s,chance:s.chances[0],shards:0,essence:0,core:0}));
+  const mass=Array.from({length:500},()=>new Map()),completed=new Float64Array(mass.length);
+  mass[0].set(`${start}00`,1);
+  const add=(cost,key,p)=>{if(cost<mass.length)mass[cost].set(key,(mass[cost].get(key)??0)+p);};
+  for(const [b,row]of mass.entries())for(const [key,probability]of row){
+   const [k,first,last]=[...key].map(Number),s=steps[k],counters=[0,first,last],tries=counters[k],p=s.chances[tries],cost=b+s.gold;
+   if(cost>=mass.length)continue;
+   counters[k]=0;
+   if(k+1===steps.length)completed[cost]+=probability*p;
+   else add(cost,`${k+1}${counters[1]}${counters[2]}`,probability*p);
+   counters[k]=Math.min(tries+1,s.chances.length-1);
+   add(cost+(s.protected?1:0),`${s.failTo}${counters[1]}${counters[2]}`,probability*(1-p));
+  }
+  const pricedGold=completed.reduce((sum,p,cost)=>sum+p*cost,0);
+  const result={steps,pricedGold,totals:{scrolls:1}},input={current:start,target:steps.length,scrollPrice:1};
+  const {quantiles}=enhancementDistribution(input,result);
+  let cdf=0;
+  const cumulative=completed.map(probability=>cdf+=probability);
+  assert.ok(cdf>1-1e-12);
+  for(const q of quantiles){const expected=cumulative.findIndex(p=>p>=q.alpha);assert.equal(q.minPrice,expected);assert.equal(q.lowerPrice,expected);}
+  assert.throws(()=>enhancementDistribution(input,result,{maxCells:1}),error=>error.message==='distributionLimit'&&error.details.reason==='memory');
+  assert.throws(()=>enhancementDistribution(input,result,{maxWork:1}),error=>error.message==='distributionLimit'&&error.details.reason==='work');
+ }
+});
+
+test('legendary Bonebound +20 to +40 completes with essence, scrolls and cores within solver limits',()=>{
+ const s={...enhancementDefaults(),itemId:853,tier:4,current:20,target:40,level:100,lectern:35,mastery:150,shardPrice:600,scrollPrice:300000,essencePrice:500,corePrice:15000000,useCore:true};
+ const r=calculateEnhancement(s),d=enhancementDistribution(s,r);
+ assert.ok(r.pricedGold>934e9&&r.pricedGold<935e9);
+ assert.ok(d.evaluatedCells<=500_000_000&&d.storedCells<=5_000_000);
+ assert.ok(d.quantiles.every(q=>q.relativeError<=.001));
+ assert.ok(d.quantiles[2].lowerPrice>2.079e12&&d.quantiles[2].minPrice<2.083e12);
+});
 const reference=target=>Array.from({length:target},(_,k)=>({chance:Math.min(1,1.3*1.158*1.375*Math.max(.2,1-.06*k)),cost:500000*k,failureCost:200000,failTo:Math.max(0,k-1)}));
 test('matches all four supplied reference quantile vectors',()=>{
  for(const [start,target,q95,q99]of [[12,13,62500000,101300000],[14,15,272100000,450200000],[10,12,41600000,62000000],[10,15,363600000,542100000]]){
@@ -63,7 +121,7 @@ function containsExact(result,expected){
 }
 test('game cost distribution matches exact cases and excludes the base item',()=>{
  assert.deepEqual(enhancementPercentiles,[80,90,95]);
- for(const [protect,expected]of [[true,[951800,1204700,1634600]],[false,[264500,358800,455400]]]){
+ for(const [protect,expected]of [[true,[940300,1195500,1623100]],[false,[264500,358800,455400]]]){
   const s=config({protect}),result=gameSolve(s);
   assert.deepEqual(result.quantiles.map(q=>q.minPrice),expected);
   assert.deepEqual(result.quantiles.map(q=>q.alpha),[.8,.9,.95]);

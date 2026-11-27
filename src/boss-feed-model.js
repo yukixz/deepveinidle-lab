@@ -1,10 +1,11 @@
 import {createWorkTimeEngine} from '../vendor/work-time/index.js';
-import {bossWorkTimeGame as gameFile, bossFeedRules as native} from './upstream.js';
+import * as game from './upstream.js';
 import {translatedName} from './i18n.js';
 import {createCharacterContext} from './boss-feed-character.js';
 import {batchQuantity, goldCost, marketSupply, procurementGold, quote} from './boss-feed-economics.js';
 
 export const rarityCount = 5;
+const {bossWorkTimeGame:gameFile,bossFeedRules:native} = game;
 const bossLabels = {heart:'熔炉之心', kraken:'海妖', colony:'菌群', blight:'枯萎之花', siege:'围城'};
 export const bossList = native.rawBosses.map(boss => ({...boss, label:bossLabels[boss.key] ?? boss.name}));
 export const gameSource = gameFile.source;
@@ -48,6 +49,12 @@ function prep({recipe, quality, quantity, character}) {
     levelTooLow:result.status === 'levelTooLow'};
 }
 
+function feedPoints(boss,actor,itemId) {
+  const basePoints = native.pointsBase(itemId);
+  return actor && basePoints > 0 ? basePoints * (actor.bossMarks.includes(boss.id) ? native.markMultiplier : 1)
+    * (1 + native.contributionBonus(actor,boss,actor.lastTick)) : null;
+}
+
 function feed({boss, category, base, itemId, character, settings}) {
   const skill = category.skill;
   const actor = character.actorFor(skill);
@@ -58,9 +65,7 @@ function feed({boss, category, base, itemId, character, settings}) {
   const bossUnlocked = levels.some(value => value >= gameFile.bossUnlockLevel);
   const low = (isKnown(level) && level < recipe?.levelReq)
     || (levels.every(isKnown) && !bossUnlocked);
-  const basePoints = native.pointsBase(itemId);
-  const points = actor && basePoints > 0 ? basePoints * (actor.bossMarks.includes(boss.id) ? native.markMultiplier : 1)
-    * (1 + native.outfitContribution(actor.equipment, boss.key)) : null;
+  const points = feedPoints(boss,actor,itemId);
   const {quantity, chests} = batchQuantity(native.chestThreshold(boss), points);
   const xpPerItem = recipe && actor ? native.feedXp(actor, xpContext(actor, character.worldXp), itemId, skill,
     actor.lastTick, settings.fire) : null;
@@ -76,10 +81,24 @@ function feed({boss, category, base, itemId, character, settings}) {
   };
 }
 
+function essenceFeed(boss,character) {
+  const itemId = native.essenceItemId;
+  const actor = character.actorFor(boss.skills[0]);
+  const points = feedPoints(boss,actor,itemId);
+  const {quantity,chests} = batchQuantity(native.chestThreshold(boss),points);
+  const unlocked = boss.skills.some(skill => native.level(actor.skills[skill]) >= gameFile.bossUnlockLevel);
+  const feedSecondsPerItem = unlocked ? gameFile.tickMs/1000/native.essenceItemsPerTick(actor,itemId) : null;
+  return {itemId,name:itemName(itemId),englishName:native.item(itemId).name,quality:0,skill:null,category:'essence',
+    bossSkills:boss.skills,points,quantity,chests,xpPerItem:0,feedSecondsPerItem,
+    feedWorkSecondsPerItem:feedSecondsPerItem,feedLogisticsSecondsPerItem:unlocked ? 0 : null,
+    feedSeconds:unlocked && quantity !== null ? feedSecondsPerItem * quantity : null,
+    status:unlocked ? 'ok' : 'levelTooLow',reason:unlocked ? null : 'bossLevel',requiredLevel:gameFile.bossUnlockLevel};
+}
+
 function rowFor(baseRow, production) {
   const {materials, seconds:craftSeconds} = production;
   const xpBySkill = Object.fromEntries(baseRow.bossSkills.map(skill => [skill, 0]));
-  xpBySkill[baseRow.skill] = baseRow.xpPerItem !== null && baseRow.quantity !== null
+  if (baseRow.skill !== null) xpBySkill[baseRow.skill] = baseRow.xpPerItem !== null && baseRow.quantity !== null
     ? baseRow.xpPerItem * baseRow.quantity : null;
   if (production.skill) {
     const previous = Object.hasOwn(xpBySkill, production.skill) ? xpBySkill[production.skill] : 0;
@@ -123,6 +142,13 @@ export function estimateRoutes({bossId, config, settings = {}}) {
       }
     }
   }
+  if (options.strategy !== 'craft') {
+    const row = essenceFeed(boss,character);
+    routes.push(rowFor(row,{kind:'buy',materials:[material(row.itemId,row.quantity)],seconds:0,xp:0}));
+  }
+  if (character.actorFor(boss.skills[0]).brews.bosskeeper) for (const route of routes) {
+    route.materials.push(material(game.bosskeeperTonicId,route.feedSeconds === null ? null : Math.ceil(route.feedSeconds/3600)));
+  }
   for (const route of routes) for (const {id} of route.materials) materialIds.add(id);
   return {routes,materialIds};
 }
@@ -144,7 +170,7 @@ export function valueRoutes(routes, quotes, {dailyProfit = 0, chargeCraftTime = 
     const materials = route.materials.map(row => ({...row,...quotes.get(row.id)}));
     const materialGold = materials.length ? procurementGold(materials) : null;
     const {supply,limitingIds} = route.kind === 'buy' ? {supply:materials[0]?.sellQty ?? null, limitingIds:[]}
-      : marketSupply(materials,route.quantity);
+      : marketSupply(materials.filter(row => row.id !== game.bosskeeperTonicId),route.quantity);
     const costs = goldCost({materialGold,feedSeconds:route.feedSeconds,craftSeconds:route.craftSeconds,dailyProfit,
       chargeCraftTime:route.kind === 'craft' && chargeCraftTime});
     for (const row of materials) row.limiting = limitingIds.includes(row.id);

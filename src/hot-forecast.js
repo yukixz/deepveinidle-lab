@@ -3,7 +3,7 @@ import {hotSkills,hotKinds,normalizeSelection} from './forecast-filters.js';
 export {hotSkills} from './forecast-filters.js';
 
 export const epoch=Date.UTC(2026,0,1);
-const rareSkills=new Set(['mining','fishing','woodcutting','farming','combat']);
+const rareSkills=new Set(['mining','fishing','woodcutting','farming','thieving','combat']);
 export const tickTime=tick=>epoch+tick*game.tickMs;
 export function forecast(now,skill='all',kind='all'){
  if(!Number.isFinite(now)||now<epoch)throw Error('invalidTime');

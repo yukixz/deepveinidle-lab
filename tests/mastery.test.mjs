@@ -102,6 +102,12 @@ test('earned mastery points include collection and forge sources and deduct exis
 });
 
 
+test('dungeon supply collection points use rare craft counts from the captured character',async()=>{
+ const {importMastery}=await import('../src/mastery.js');
+ const snapshot={version:2,capturedAt:Date.now(),player:{masteries:{},collections:{2962:2},forgeLog:{}}};
+ assert.equal(importMastery(masteryDefaults(),snapshot).state.totalPoints,10);
+});
+
 test('available points derive from total points and current ranks, including legacy migration',async()=>{
  const {changeMasteryTotal}=await import('../src/mastery.js');let s=masteryDefaults();
  s=changeMasteryTotal(s,'100');assert.equal(s.totalPoints,100);assert.equal(s.budget,100);

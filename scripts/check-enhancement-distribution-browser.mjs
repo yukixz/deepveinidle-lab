@@ -10,7 +10,11 @@ const base=process.argv[3]??'http://127.0.0.1:4173';
 await fs.mkdir(directory,{recursive:true});
 const browser=await chromium.launch({headless:true,executablePath:await browserPath()});
 const errors=[],checks=[];
-const settings={...enhancementDefaults(),shardPrice:100,scrollPrice:200000,basePrice:0,basePriceItem:game.encode(game.withRarity(110,3),0),priceModes:{shardPrice:'manual',scrollPrice:'manual',basePrice:'manual'}};
+const settings={...enhancementDefaults(),itemId:110,tier:3,target:7,shardPrice:100,scrollPrice:200000,basePrice:0,basePriceItem:game.encode(game.withRarity(110,3),0),priceModes:{shardPrice:'manual',scrollPrice:'manual',basePrice:'manual'}};
+const costs=[calculateEnhancement(settings).pricedGold,940300,1195500,1623100],q95=costs.at(-1);
+const money=value=>Math.ceil(value).toLocaleString('en',{maximumFractionDigits:0});
+const waitForAmount=(page,selector,expected)=>page.waitForFunction(({selector,expected})=>document.querySelector(selector)?.textContent===expected,{selector,expected:money(expected)});
+const waitForFee=(page,expected)=>waitForAmount(page,'#enhance-fee-q95 strong',expected);
 try{
  for(const width of [1280,390])for(const language of ['zh','en']){
   const context=await browser.newContext({viewport:{width,height:900}});
@@ -22,7 +26,7 @@ try{
   assert.equal(await tax.inputValue(),'3');
   assert.equal(await page.locator('[data-enhance-field="profitRate"]').inputValue(),'10');
   assert.equal(await page.locator('#enhance-price-settings h3').textContent(),language==='zh'?'价格与收费设置':'Prices and fees');
-  assert.equal(await page.locator('#enhance-fee-q95 strong').textContent(),Math.ceil(1634600/.87).toLocaleString('en'));
+  assert.equal(await page.locator('#enhance-fee-q95 strong').textContent(),money(q95/.87));
   await tax.fill('4.5');
   await page.reload();
   assert.equal(await tax.inputValue(),'4.5');
@@ -33,24 +37,22 @@ try{
   assert.match(await page.locator('#enhance-results [role="alert"]').textContent(),/市场税率|Market tax rate/);
   await tax.fill('0');
   await page.locator('[data-enhance-field="profitRate"]').fill('3');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,685,155');
-  assert.equal(await page.locator('.enhance-inputs .stat').count(),5);
+  await waitForFee(page,q95/.97);
+  assert.equal(await page.locator('.enhance-inputs .stat').count(),7);
   assert.deepEqual(await page.locator('#enhance-results h2, #enhance-results h3').allTextContents(),language==='zh'?['平均强化投入','收费测算','逐级成功率与单次费用']:['Average enhancement inputs','Fee estimates','Step chances and per-attempt costs']);
   const inputLayout=await page.locator('.enhance-inputs').evaluate(el=>({gap:parseFloat(getComputedStyle(el).columnGap),cards:[...el.children].map(card=>{const r=card.getBoundingClientRect();return {top:r.top,width:r.width};})}));
-  assert.equal(new Set(inputLayout.cards.map(c=>Math.round(c.top))).size,width>=1200?1:3);
+  assert.equal(new Set(inputLayout.cards.map(c=>Math.round(c.top))).size,width>=1200?1:4);
   assert.ok(Math.abs(inputLayout.cards[0].width-2*inputLayout.cards[1].width-inputLayout.gap)<1);
   assert.equal(await page.locator('.enhance-fees .stat').count(),8);
   for(const value of await page.locator('.enhance-fees strong').allTextContents())assert.match(value,/^[0-9,]+$/);
   assert.equal(await page.locator('#enhance-q99, #enhance-fee-q99').count(),0);
   assert.equal(await page.locator('.enhance-costs').count(),0);
   const profitPrefix=language==='zh'?'税后利润：':'Profit after tax: ';
-  const costs=[calculateEnhancement(settings).pricedGold,951800,1204700,1634600];
-  const money=value=>Math.ceil(value).toLocaleString('en',{maximumFractionDigits:0});
   const fees=basePrice=>costs.map(cost=>money((cost+basePrice)/.97));
   const profits=basePrice=>costs.map(cost=>profitPrefix+money((cost+basePrice)/.97*.03));
   const expectedProfits=profits(0);
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),expectedProfits);
-  assert.deepEqual(await page.locator('.enhance-fees').first().locator('strong').allTextContents(),['572,433','951,800','1,204,700','1,634,600']);
+  assert.deepEqual(await page.locator('.enhance-fees').first().locator('strong').allTextContents(),costs.map(money));
   assert.equal(await page.getByRole('heading',{name:language==='zh'?'平均强化投入':'Average enhancement inputs',exact:true}).count(),1);
   assert.equal(await page.getByRole('heading',{name:language==='zh'?'收费测算':'Fee estimates',exact:true}).count(),1);
   assert.ok(!/固定强化技能等级估算|Fixed enhancing level estimate/.test(await page.locator('#enhance-results').textContent()));
@@ -65,34 +67,34 @@ try{
   assert.ok(Math.abs(baseBox.y-profitBox.y)<1,'tax and margin share a row');
   const rawCosts=await page.locator('.enhance-fees').first().locator('strong').allTextContents();
   await profit.fill('0');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,634,600');
+  await waitForFee(page,q95);
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),Array(4).fill(profitPrefix+'0'));
   await profit.fill('12.5');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,868,115');
+  await waitForFee(page,q95/.875);
   await page.reload();
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,868,115');
+  await waitForFee(page,q95/.875);
   assert.equal(await profit.inputValue(),'12.5');
   await page.locator('#enhance-reset').click();assert.equal(await profit.inputValue(),'12.5');
   await profit.fill('100');
   assert.match(await page.locator('#enhance-results [role="alert"]').textContent(),/利润率|profit margin/);
   await profit.fill('3');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,685,155');
+  await waitForFee(page,q95/.97);
   await page.locator('[data-enhance-field="basePrice"]').fill('100');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,685,258');
+  await waitForFee(page,(q95+100)/.97);
   // Rapid edits must leave the final price reflected in all quantiles.
   await page.locator('[data-enhance-field="basePrice"]').fill('200');
   await page.locator('[data-enhance-field="basePrice"]').fill('300');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,685,464');
+  await waitForFee(page,(q95+300)/.97);
   assert.deepEqual(await page.locator('.enhance-fees').first().locator('strong').allTextContents(),rawCosts);
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('strong').allTextContents(),fees(300));
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),profits(300));
   await page.locator('[data-enhance-field="basePrice"]').fill('1000000000000.1');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='1,030,929,520,207');
+  await waitForFee(page,(q95+1000000000000.1)/.97);
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('strong').allTextContents(),fees(1000000000000.1));
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),profits(1000000000000.1));
   await page.locator('[data-enhance-field="basePrice"]').fill('');
   await page.waitForFunction(()=>/未完整定价|Incomplete pricing/.test(document.querySelector('#enhance-fee-q95 strong')?.textContent));
-  await page.waitForFunction(()=>document.querySelector('#enhance-q95 strong')?.textContent==='1,634,600');
+  await waitForAmount(page,'#enhance-q95 strong',q95);
   assert.deepEqual(await page.locator('.enhance-fees').first().locator('strong').allTextContents(),rawCosts);
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),Array(4).fill(profitPrefix+(language==='zh'?'未完整定价':'Incomplete pricing')));
   assert.equal(await page.locator('.enhance-fees').nth(1).locator('.stat').filter({hasText:/未完整定价|Incomplete pricing/}).count(),4);
@@ -108,9 +110,10 @@ try{
   await page.locator('[data-enhance-field="target"]').fill('1');
   await page.locator('[data-enhance-field="shardPrice"]').fill('100.1');
   await page.locator('[data-enhance-field="basePrice"]').fill('0');
-  await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='2,645');
-  assert.deepEqual(await page.locator('.enhance-fees').first().locator('strong').allTextContents(),Array(4).fill('2,301'));
-  assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),Array(4).fill(profitPrefix+'265'));
+  const horseCost=150000+3*100.1;
+  await waitForFee(page,horseCost/.87);
+  assert.deepEqual(await page.locator('.enhance-fees').first().locator('strong').allTextContents(),Array(4).fill(money(horseCost)));
+  assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),Array(4).fill(profitPrefix+money(horseCost/.87*.1)));
   await page.locator('[data-enhance-field="target"]').fill('0');
   await page.locator('[data-enhance-field="basePrice"]').fill('100');
   await page.waitForFunction(()=>document.querySelector('#enhance-fee-q95 strong')?.textContent==='115');
@@ -119,7 +122,25 @@ try{
   assert.deepEqual(await page.locator('.enhance-fees').nth(1).locator('small').allTextContents(),Array(4).fill(profitPrefix+'12'));
   assert.match(await page.locator('#enhance-results').textContent(),language==='zh'?/强化成本与底装购置费合计/:/combined enhancement cost and base item purchase price/);
   await page.screenshot({path:path.join(directory,`${language}-${width}-base-profit.png`),fullPage:true});
-  checks.push({width,language,passed:true,baseEarnsProfit:true,reachedTargetBaseProfit:true,panelOrder:true,inputLayout:true,profitMargin:true,sameRow:true,saveRestore:true,resetIsolation:true,rawCostsIndependent:true,missingBaseIsolated:true,eightCards:true,profitNotes:true,noValuationPanel:true,integerAmounts:true});await context.close();
+  checks.push({width,language,passed:true,baseEarnsProfit:true,reachedTargetBaseProfit:true,panelOrder:true,inputLayout:true,profitMargin:true,sameRow:true,saveRestore:true,resetIsolation:true,rawCostsIndependent:true,missingBaseIsolated:true,eightCards:true,profitNotes:true,noValuationPanel:true,integerAmounts:true});
+  if(width===1280){
+   const high={...settings,itemId:853,tier:4,current:20,target:25,level:100,lectern:35,mastery:150,shardPrice:600,scrollPrice:300000,essencePrice:500,corePrice:15000000,useCore:true,basePriceItem:game.encode(game.withRarity(853,4),20),priceModes:{...settings.priceModes,essencePrice:'manual',corePrice:'manual'}};
+   await page.evaluate(({high,key})=>localStorage.setItem(key,JSON.stringify(high)),{high,key:enhancementStorageKey});
+   await page.reload();
+   assert.equal(await page.locator('[data-enhance-field="target"]').getAttribute('max'),'40');
+   assert.equal(await page.locator('[data-enhance-field="essencePrice"]').inputValue(),'500');
+   assert.equal(await page.locator('[data-enhance-field="corePrice"]').inputValue(),'15000000');
+   assert.equal(await page.locator('[data-enhance-field="useCore"]').isChecked(),true);
+   assert.equal(await page.locator('.enhance-table tbody tr').count(),5);
+   assert.match(await page.locator('#enhance-results').textContent(),/零保底|zero pity/);
+   await page.waitForFunction(()=>/^[0-9,]+$/.test(document.querySelector('#enhance-fee-q95 strong')?.textContent??''));
+   const highCost=Number((await page.locator('#enhance-q95 strong').textContent()).replaceAll(',',''));
+   assert.ok(highCost>90e9&&highCost<91e9);
+   await page.locator('[data-enhance-field="useCore"]').uncheck();
+   assert.equal(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).useCore,enhancementStorageKey),false);
+   checks.push({width,language,highLevelPity:true,essenceAndCore:true,enhancementLimit:true});
+  }
+  await context.close();
  }
  // Simulate an already queued reply from a terminated Worker, and a genuine
  // Worker failure. Neither may leave stale prices or a perpetual spinner.

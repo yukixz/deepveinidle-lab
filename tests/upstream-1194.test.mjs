@@ -7,8 +7,13 @@ import {craftingJobs} from '../src/crafting-model.js';
 import {enhancementDefaults,validateEnhancement,calculateEnhancement,decodeEnhancementItem,importEnhancement} from '../src/enhancement.js';
 import {masteryDefaults,importMastery} from '../src/mastery.js';
 
-test('1194 separates the +20 task cap from existing +100 item encoding',()=>{
- assert.equal(game.enhancementTargetLimit,20);assert.equal(game.maxEnhancement,100);
+test('Enhancement separates per-item task caps from existing +100 item encoding',()=>{
+ assert.equal(game.enhancementTargetLimit,40);assert.equal(game.maxEnhancement,100);
+ for(const [itemId,limit]of [[110,20],[980,25],[881,40]]){
+  assert.equal(game.itemEnhancementLimit(itemId),limit);
+  assert.ok(calculateEnhancement({...enhancementDefaults(),itemId,target:limit}).totals.attempts>0);
+  assert.throws(()=>calculateEnhancement({...enhancementDefaults(),itemId,target:limit+1}),/targetAboveLimit/);
+ }
  for(const current of [21,50,100]){
   const id=game.encode(game.withRarity(110,4),current);
   assert.equal(decodeEnhancementItem(id).current,current);
@@ -23,7 +28,6 @@ test('1194 separates the +20 task cap from existing +100 item encoding',()=>{
  for(const [current,target]of [[0,21],[20,21],[21,22],[50,100]])assert.throws(()=>calculateEnhancement({...enhancementDefaults(),current,target}),/targetAboveLimit/);
  const legacy={...enhancementDefaults(),target:100};assert.equal(validateEnhancement(legacy,{allowUnsupportedTarget:true}).target,100);
  assert.throws(()=>calculateEnhancement(legacy),/targetAboveLimit/);
- assert.ok(calculateEnhancement({...enhancementDefaults(),target:20}).totals.attempts>0);
 });
 
 test('1194 enhancement mastery keeps rank costs while capping both probability and displayed bonus',()=>{

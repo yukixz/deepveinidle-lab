@@ -105,7 +105,7 @@ try {
  assert.equal(await find('skill').inputValue(),'');
  assert.equal(await find('skill').evaluate(node=>node.nextElementSibling?.id),'boss-feed-category');
  assert.deepEqual(await options('skill'),['全部技能','采矿','锻造']);
- assert.deepEqual(await options('category'),['全部分类','矿石','金属锭','煤']);
+ assert.deepEqual(await options('category'),['全部分类','矿石','金属锭','煤','首领精华']);
  assert.deepEqual(await pressed('quality'),['0','1']);
  assert.deepEqual(await find('strategy').locator('option').allTextContents(),['直购+自制','仅直购','仅自制']);
  assert.equal(await find('strategy').inputValue(),'both');
@@ -171,6 +171,17 @@ try {
  assert.deepEqual(await options('category'),['全部分类','金属锭']);
  assert.deepEqual([...new Set(await rows.locator('td:nth-child(2)').allTextContents())],['锻造']);
  await find('skill').selectOption('');
+ await find('category').selectOption('essence');
+ await row('778:buy').waitFor();
+ assert.equal(await row('778:buy').locator('td').first().textContent(),'任一栏');
+ await find('category').selectOption('');
+ const potionPanel=find('character-potions');
+ await potionPanel.locator('summary').click();
+ const tonic=potionPanel.locator('input[type="checkbox"]');
+ await tonic.check();
+ assert.equal((await state()).character.brews.bosskeeper,0);
+ await tonic.uncheck();
+ await potionPanel.locator('summary').click();
  await find('search').fill('meteoric');
  assert.deepEqual(new Set(await rows.locator('td:nth-child(2)').allTextContents()),new Set(['采矿','锻造']));
  await page.locator('[data-boss-feed-sort="totalGold"]').click();

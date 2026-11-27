@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {parse} from 'acorn';
-import {world as combatWorld} from '../src/upstream-combat.js';
+import {world as combatWorld} from '../src/upstream.js';
 import {defaults,normalize} from '../src/model.js';
 import {importCharacter} from '../src/character-import.js';
 import {manualControls} from '../src/manual-controls.js';

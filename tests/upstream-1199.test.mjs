@@ -1,13 +1,17 @@
 import test from'node:test';
 import assert from'node:assert/strict';
 import fs from'node:fs';
+import {createHash} from'node:crypto';
 import * as game from'../src/upstream.js';
 import {enhancementDefaults,enhanceableItems,validateEnhancement,enhancementSteps,calculateEnhancement,importEnhancement} from'../src/enhancement.js';
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-12,`${a} != ${b}`);
 
 test('Current reviewed full snapshot retains lectern and client boss definitions',()=>{
  const m=JSON.parse(fs.readFileSync(new URL('../vendor/manifest.json',import.meta.url)));
- assert.equal(m.changelogVersion,'1.0.1221');assert.equal(m.sha256,'7fdb0dbe3a5aa0bda15768e45c55a5f064508b5259e1b6f44c0cb5e271b3272c');assert.deepEqual(m.overrides,[]);
+ assert.equal(m.changelogVersion,'1.0.1228');
+ const digest=createHash('sha256').update(fs.readFileSync(new URL('../vendor/game-original.js',import.meta.url))).digest('hex');
+ assert.equal(digest,'c600e5c33615ceb8c6c7f179e6e368b935ec09b36ca60d4c1815b3690f96343b');
+ assert.equal(m.sha256,digest);assert.deepEqual(m.overrides,[]);
  assert.notEqual(game.rooms.find(r=>r.id==='lectern').retired,true);
  assert.deepEqual(game.bosses.map(b=>b.exclusive.chance),[1/500,1/500,1/500]);
 });
@@ -18,11 +22,14 @@ test('1199 restored base floor and placed lectern multiplier match independent v
  }
  assert.equal(enhancementSteps({...enhancementDefaults(),target:20})[19].chance,.2);
 });
-test('1203 every equipment rarity retains uniform shards and XP with 2.4 second attempts',()=>{
+test('Enhancement rarity affects XP and keeps shard cost uniform below +20',()=>{
  for(const item of enhanceableItems)for(const [tier,mult]of [1,1.5,3,8,25].entries()){
   const state={...enhancementDefaults(),itemId:item.id,tier,target:4};
-  for(const step of enhancementSteps(state)){assert.equal(step.shards,3*(step.from+1));assert.equal(step.xp,Math.round(20*(step.from+1)*mult));}
-  const result=calculateEnhancement(state);assert.equal(result.totals.seconds,result.totals.attempts*2.4);
+  for(const step of enhancementSteps(state)){
+   assert.equal(step.shards,3*(step.from+1));
+   assert.equal(step.xp,Math.round(20*(2*step.from+1)*mult));
+  }
+  const result=calculateEnhancement(state);near(result.totals.seconds,result.totals.attempts*2.4);
  }
  assert.equal(game.enhanceTicks*game.tickMs,2400);assert.equal(game.skillPetChance('enhancing'),1/3e6);assert.equal(game.skillPetChance('mining'),1/3e6);
 });

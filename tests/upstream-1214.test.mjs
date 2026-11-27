@@ -11,7 +11,7 @@ test('1214 synthetic prediction retains empty boss rewards and mastery pages',()
  game.predict(player,context,p=>{prepared=p;return false;});
  assert.deepEqual(prepared.skillbossPending,[]);assert.deepEqual(prepared.masteryAway,{});
  assert.equal(prepared.skillboss,null);assert.deepEqual(prepared.masterySkills,{});
- assert.equal(masteryResultEngine,'mastery-1/game-1.0.1221/combat-1.0.1225');
+ assert.equal(masteryResultEngine,'mastery-1/game-1.0.1228');
  assert.throws(()=>validateComputedMasteryResult({engine:'mastery-1/game-1.0.1212'}),/savedMasteryVersion/);
 });
 

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {enhanceableItems} from '../src/enhancement.js';
 import {filterSearchOptions,bindSearchSelect} from '../src/search-select.js';
 test('all enhanceable items are searchable and bilingual search ignores case',()=>{
- assert.equal(enhanceableItems.length,193);
- const catalog=enhanceableItems.map(x=>({value:x.id,label:x.name}));assert.equal(filterSearchOptions(catalog,'').length,193);
+ assert.equal(enhanceableItems.length,297);
+ const catalog=enhanceableItems.map(x=>({value:x.id,label:x.name}));assert.equal(filterSearchOptions(catalog,'').length,297);
  const options=[{value:1,label:'青铜',search:'青铜 Bronze blade'},{value:2,label:'铁',search:'铁 Iron blade'}];
  assert.equal(filterSearchOptions(options,' BRONZE ')[0].value,1);assert.equal(filterSearchOptions(options,'青铜')[0].value,1);assert.equal(filterSearchOptions(options,'missing').length,0);
 });

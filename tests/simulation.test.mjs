@@ -3,7 +3,7 @@ import {nativeDay} from './native-day.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaults as defaultBuild,preset as presetBuild,normalize,masteryValue,masteryRank} from '../src/model.js';
-import * as game from '../src/upstream-combat.js';
+import * as game from '../src/upstream.js';
 import {simulateMonster,createScenario,START_TICK,HOUR_TICKS,DAY_TICKS} from '../src/simulation.js';
 // Keep non-forecast regression scenarios deterministic and independent of wall time.
 const preset=style=>{const s=presetBuild(style);s.manual.hotSetting='off';s.manual.simulationHours=24;return s;};

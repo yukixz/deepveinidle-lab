@@ -5,7 +5,8 @@ import {createGatheringScenario} from './gathering-simulation.js';
 import {createCraftingScenario} from './crafting-simulation.js';
 import {simulationTicks} from './combat-hot.js';
 import {START_TICK} from './simulation.js';
-import {addExpected,expectedWorkExtras} from './work-expectation.js';
+import {addExpected,expectedWorkExtras,expectedDungeonKeys} from './work-expectation.js';
+import {workStrideSpeed} from './work-config-effects.js';
 
 const native=game.bossFeedRules,workTimeRules=game.bossWorkTimeGame;
 const tickSeconds=game.tickMs/1000;
@@ -67,7 +68,7 @@ export function createMasteryWorkEstimator(input,{crafting,experience,collection
    skills:{[job.skill]:{level:game.level(player.skills[job.skill]),speedMultiplier:speed.combined,
     upgradeSpeedMultiplier:speed.tool*game.combine(speed.quick,speed.home)*speed.mastery,failureMultiplier:1-.03*player.perks.hands,
     luck,rareFindBonus:game.combine(game.brewRarityMultiplier(player),game.houseRarityMultiplier(player),game.masteryMultiplier(ranks,'rare'))-1}},
-   movement:{strideSpeed:Math.round(game.mountSpeed(player)*(1+native.swiftSpeedBonus*game.brewScale(player,'swift'))*game.masteryMultiplier(ranks,'move')),capacity:game.packCapacity(player)},
+   movement:{strideSpeed:workStrideSpeed(player),capacity:game.packCapacity(player)},
   };
   const options={character,task:countTask,environment:intervals[0].environment};
   const walkingTicks=path.length?Math.ceil(path.length*1000/character.movement.strideSpeed)+1:0;
@@ -103,6 +104,7 @@ export function createMasteryWorkEstimator(input,{crafting,experience,collection
     const perSuccess=qualities.reduce((sum,p,quality)=>sum+p*native.productionXp(player,context,job,quality,tick,raw),0);
     xp+=count*success*perSuccess;
    }else{
+    expectedDungeonKeys((id,quantity)=>addExpected(extras,id,quantity),player,context,job,tick,count*success);
     const {products}=engine.estimateWorkExpectation(interval);
     for(const [id,quantity] of Object.entries(products)){
      if(Number(id)===game.coinItemId)coins+=count*quantity;

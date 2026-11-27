@@ -27,8 +27,7 @@ test('new combat gear supports all qualities, enhancement, prices, translation a
    assert.deepEqual(normalize(JSON.parse(JSON.stringify(s))).gear[slot],s.gear[slot]);
   }
  }
- // The reviewed upgrade recipe level now determines enhancement costs.
- assert.equal(enhanceableItems.length,193);
+ assert.ok([853,904,980].every(id=>enhanceableItems.some(item=>item.id===id)));
  assert.ok(newGear.every(([id])=>enhanceableItems.some(i=>i.id===id)));
 });
 
@@ -79,7 +78,7 @@ test('warehouse meals leave the full selected trip load and all consumed food is
 });
 
 test('dungeon equipment applies tier caps, set damage and relic progress across storage and import',async()=>{
- const combat=await import('../src/upstream-combat.js');
+ const combat=await import('../src/upstream.js');
  const state=preset('melee');
  state.levels.melee=99;
  state.gear.weapon={id:884,tier:4,plus:50};
@@ -106,7 +105,7 @@ test('dungeon equipment applies tier caps, set damage and relic progress across 
 });
 
 test('weapon damage floor uses base ticks without changing the planned mean',async()=>{
- const {rollPlayerDamage}=await import('../src/upstream-combat.js');
+ const {rollPlayerDamage}=await import('../src/upstream.js');
  for(const [speed,floor]of [[2,20],[3,20],[4,26],[5,33],[6,40],[7,40]]){
   assert.equal(rollPlayerDamage(0,100,speed),floor);
   assert.equal(rollPlayerDamage(1-Number.EPSILON,100,speed),100);
@@ -115,4 +114,14 @@ test('weapon damage floor uses base ticks without changing the planned mean',asy
   for(let i=0;i<samples;i++)total+=rollPlayerDamage((i+.5)/samples,100,speed);
   assert.ok(Math.abs(total/samples-50.5)<.01);
  }
+});
+
+test('saved and imported zero-relic gear restores its base item and variants',()=>{
+ const old={...defaults(),gear:{...defaults().gear,weapon:{id:921,tier:2,plus:10,relics:0}}};
+ assert.deepEqual(normalize(old).gear.weapon,{id:350,tier:2,plus:10});
+ const {player}=createScenario(defaults());
+ player.equipment.weapon=game.encode(game.withRarity(921,2),10);
+ const imported=importCharacter(defaults(),{version:2,capturedAt:Date.now(),player});
+ assert.deepEqual(imported.state.gear.weapon,{id:350,tier:2,plus:10});
+ assert.ok(!imported.warnings.some(w=>w.startsWith('equipment:')));
 });

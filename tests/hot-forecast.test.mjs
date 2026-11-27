@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {forecast,epoch,tickTime,hotSkills} from '../src/hot-forecast.js';
 import {hotKinds,normalizeSelection,toggleSelection,parseForecastFilters} from '../src/forecast-filters.js';
 const at=time=>Date.parse(`2026-10-06T${time}:00+08:00`);
+test('shared schedule includes thieving rare finds and the filter returns future slots',()=>{
+ const now=Date.parse('2026-11-27T11:00:00+08:00'),result=forecast(now,'thieving','rarity');
+ assert.deepEqual([result.current.skill,result.current.kind,result.current.mult],['thieving','rarity',1.25]);
+ assert.equal(result.impossible,false);
+ assert.equal(result.entries.length,10);
+ assert.ok(result.entries.every(slot=>slot.skill==='thieving'&&slot.kind==='rarity'));
+});
 test('verified date examples and half-hour boundary use game epoch',()=>{
  for(const [time,skill] of [['11:00','smithing'],['11:30','farming'],['12:00','mining'],['12:30','fletching'],['13:00','combat'],['19:00','combat'],['23:00','combat']]){
   const current=forecast(at(time)).current;
@@ -27,7 +34,7 @@ test('skill and bonus filters return exactly 10 future matching slots beyond 24 
  for(const skill of ['all',...hotSkills])for(const kind of ['all','xp','rarity']){
   if(skill==='all'&&kind==='all')continue;
   const result=forecast(now,skill,kind);
-  if(result.impossible){assert.equal(kind,'rarity');assert.ok(['thieving','cooking','smithing','fletching','herblore','crafting','enhancing'].includes(skill));assert.deepEqual(result.entries,[]);continue;}
+  if(result.impossible){assert.equal(kind,'rarity');assert.ok(['cooking','smithing','fletching','herblore','crafting','enhancing'].includes(skill));assert.deepEqual(result.entries,[]);continue;}
   assert.equal(result.entries.length,10);
   for(const [i,entry] of result.entries.entries()){
    assert.ok(tickTime(entry.from)>now);

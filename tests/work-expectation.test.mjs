@@ -58,7 +58,8 @@ test('reward opportunities skip failures, respect ironman and use post-XP speed'
  close(mounts.reduce((n,[,q])=>n+q,0),game.mountChance(1/game.workChance(job,player)));
  close(rewards[game.skillPet('mining').itemId],game.skillPetChance('mining'));
  player.ironman=true;const iron={};expectedWorkRewards(iron,player,context,job,START_TICK,null,produced);
- assert.equal(Object.keys(iron).length,1);assert.ok(iron[game.skillPet('mining').itemId]>0);
+ assert.equal(Object.keys(iron).length,2);assert.ok(iron[game.skillPet('mining').itemId]>0);
+ assert.ok(rewards[909]>0);close(iron[909],rewards[909]);
  player.activity='working';player.workJobId=job.id;player.stunUntil=START_TICK+5;
  assert.equal(beforeWork(player,job,START_TICK),null);
 });

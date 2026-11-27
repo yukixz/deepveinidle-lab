@@ -38,7 +38,8 @@ function readSettings() {
 }
 
 function bossCategories(boss, skill) {
-  return [...new Set(boss.classes.filter(group => !skill || group.skill === skill).map(group => group.cls))];
+  const categories = [...new Set(boss.classes.filter(group => !skill || group.skill === skill).map(group => group.cls))];
+  return skill ? categories : [...categories,'essence'];
 }
 
 function normalizeFilters(filters, boss) {

@@ -1,4 +1,4 @@
-import * as game from './upstream-combat.js';
+import * as game from './upstream.js';
 import {readGuild} from './guild.js';
 import {readWorldBuffs,worldBuffWarningText} from './world-buffs.js';
 import {defaults,normalize,slots,skills,combatStyles,foods,gearDetails,gearEnhancementLimit,gearRelicLimit,equippedItemId} from './model.js';

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {parse} from 'acorn';
 import {preset} from '../src/model.js';
-import * as game from '../src/upstream-combat.js';
+import * as game from '../src/upstream.js';
 import {monsterKey,selectedEnemies} from '../src/enemy-selection.js';
 import {createScenario,simulateMonster} from '../src/simulation.js';
 import {randomSimulationSeed} from '../src/simulation-seed.js';

@@ -2,7 +2,8 @@ import * as game from './upstream.js';
 import {createScenario} from './simulation.js';
 import {DEFAULT_HOT_SETTING,normalizeManual} from './manual-settings.js';
 import {readGuild} from './guild.js';
-import {slotItems,gatheringGear,workEquipmentSlots} from './gathering-model.js';
+import {gatheringGear,normalizeWorkGear,workEquipmentSlots} from './gathering-model.js';
+import {workStrideSpeed} from './work-config-effects.js';
 import {importWorkConfig} from './work-import.js';
 import {valuationPrice} from './item-prices.js';
 import {restoreSkillMasteries} from './character-masteries.js';
@@ -11,7 +12,7 @@ export const craftingStorageKey='dvi-crafting-config-v1';
 export const craftingSkills=['cooking','smithing','fletching','herblore','crafting'];
 export const craftingToolSlots={cooking:'pan',smithing:'hammer',fletching:'knife',herblore:'mortar',crafting:'needle'};
 export const craftingSlots=[...Object.values(craftingToolSlots),'mount',...workEquipmentSlots];
-export const craftingJobs=[...game.recipes.filter(r=>craftingSkills.includes(r.skill)&&!r.retired),...game.upgradeRecipes.map(upgrade=>({id:'upgrade-'+upgrade.id,name:upgrade.name,skill:upgrade.skill,group:'Upgrades',levelReq:upgrade.levelReq,xp:upgrade.xp,upgrade,output:{itemId:upgrade.to[0],qty:1}}))];
+export const craftingJobs=[...game.recipes.filter(r=>craftingSkills.includes(r.skill)&&!r.retired),...game.upgradeRecipes.filter(upgrade=>!upgrade.retired).map(upgrade=>({id:'upgrade-'+upgrade.id,name:upgrade.name,skill:upgrade.skill,group:'Upgrades',levelReq:upgrade.levelReq,xp:upgrade.xp,upgrade,output:{itemId:upgrade.to[0],qty:1}}))];
 export const craftingPotions=game.potions.filter(p=>['elixir','swift'].includes(p.kind));
 export const craftingRooms=game.rooms.filter(r=>r.bonus.kind==='craftSpeed'&&craftingSkills.includes(r.bonus.skill));
 export const craftingMasteries=game.masteries.filter(m=>['craft','xp','move'].includes(m.id));
@@ -31,7 +32,7 @@ export function normalizeCrafting(raw){
  const s=craftingDefaults();if(!raw||typeof raw!=='object')return s;
  s.skill=craftingSkills.includes(raw.skill)?raw.skill:s.skill;
  for(const k of craftingSkills)s.levels[k]=integer(raw.levels?.[k]??1,1,game.maxLevel);
- for(const slot of craftingSlots){const v=raw.gear?.[slot];if(v&&slotItems(slot).some(g=>g.itemId===Number(v.id)))s.gear[slot]={id:Number(v.id),tier:game.itemSupportsRarity(Number(v.id))?integer(v.tier??0,0,4):0,plus:game.canEnhance(Number(v.id))?integer(v.plus??0,0,game.maxEnhancement):0};}
+ for(const slot of craftingSlots)s.gear[slot]=normalizeWorkGear(slot,raw.gear?.[slot]);
  for(const p of craftingPotions)s.brews[p.kind]=integer(raw.brews?.[p.kind]??-1,-1,4);
  for(const r of craftingRooms)s.house[r.id]=integer(raw.house?.[r.id]??0,0,game.houseLevelLimit);
  for(const m of craftingMasteries)s.masteries[m.id]=integer(raw.masteries?.[m.id]??0,0,game.masteryRankLimit);
@@ -73,6 +74,6 @@ export function craftingJobStats(raw,job){
 export function craftingStats(raw){
  const {state:s,player:p}=craftingPlayer(raw);return {level:s.levels[s.skill],speedBonus:game.workModifiers(p,s.skill).combined-1,
  xpBonus:game.combine(game.workXpMultiplier(p,false,s.skill),game.masteryMultiplier(p.masteries,'xp'),1+s.weeklyXp/100)-1,
- moveSpeed:Math.round(game.mountSpeed(p)*(1+.2*game.brewScale(p,'swift'))*(1+s.masteries.move*.005))/1000,capacity:game.packCapacity(p)};
+ moveSpeed:workStrideSpeed(p)/1000,capacity:game.packCapacity(p)};
 }
 export function importCrafting(current,snapshot){return importWorkConfig(current,snapshot,{skills:craftingSkills,slots:craftingSlots,potions:craftingPotions,rooms:craftingRooms,masteries:craftingMasteries,perks:craftingPerks,normalize:normalizeCrafting,gear:gatheringGear,reset:{homeBank:0,hotSetting:DEFAULT_HOT_SETTING}});}

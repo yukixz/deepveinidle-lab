@@ -4,20 +4,35 @@ import {DEFAULT_HOT_SETTING,normalizeManual} from './manual-settings.js';
 import {createScenario} from './simulation.js';
 import {readGuild} from './guild.js';
 import {restoreSkillMasteries} from './character-masteries.js';
+import {workStrideSpeed} from './work-config-effects.js';
 
 export const gatheringStorageKey='dvi-gathering-v1';
 export const gatheringSkills=['mining','fishing','woodcutting','thieving'];
 export const toolSlots={mining:'pickaxe',fishing:'rod',woodcutting:'axe',thieving:'gloves'};
 export const workEquipmentSlots=['shield','helmet','body','legs'];
-export const gatheringSlots=[...Object.values(toolSlots),'amulet','mount',...workEquipmentSlots];
+export const gatheringSlots=[...Object.values(toolSlots),'amulet','mount',...workEquipmentSlots,'earring'];
 export const gatheringJobs=game.recipes.filter(r=>gatheringSkills.includes(r.skill));
 export const gatheringPotions=game.potions.filter(p=>['gatherer','hunter','elixir','swift'].includes(p.kind)).sort((a,b)=>game.recipes.find(r=>r.output.itemId===a.itemId)?.levelReq-game.recipes.find(r=>r.output.itemId===b.itemId)?.levelReq);
 export const gatheringRooms=game.rooms.filter(r=>r.bonus.kind==='rareChance'||r.bonus.kind==='gatherSpeed'&&gatheringSkills.includes(r.bonus.skill));
 export const gatheringMasteries=game.masteries.filter(m=>['gather','xp','move','rare'].includes(m.id));
 export const gatheringPerks=game.perks.filter(p=>['pockets','quick','hands'].includes(p.id));
 const integer=(v,min,max,fallback=min)=>Number.isFinite(Number(v))?Math.min(max,Math.max(min,Math.floor(Number(v)))):fallback;
-export const slotItems=slot=>slot==='amulet'?game.equipment.filter(g=>g.slot===slot):slot==='shield'?game.equipment.filter(g=>g.slot===slot&&g.offhand):workEquipmentSlots.includes(slot)?game.equipment.filter(g=>g.slot===slot&&game.skillOutfits.some(o=>o.id===g.itemId)):game.tools.filter(g=>g.slot===slot);
-export const gatheringGear=(slot,id)=>slot==='amulet'||workEquipmentSlots.includes(slot)?game.gear(id):game.tool(id);
+const workGearSlots=['amulet','earring',...workEquipmentSlots];
+export function slotItems(slot){
+ if(!workGearSlots.includes(slot))return game.tools.filter(g=>g.slot===slot);
+ const equipment=game.equipment.filter(g=>g.slot===slot&&g.itemId===game.baseItemId(g.itemId));
+ if(slot==='amulet')return equipment;
+ if(slot==='shield')return equipment.filter(g=>g.offhand);
+ if(slot==='earring')return equipment.filter(g=>g.itemId===game.earringIds.keyfinder);
+ return equipment.filter(g=>g.itemId===game.packmasterCoatId||game.skillOutfits.some(o=>o.id===g.itemId));
+}
+export const gatheringGear=(slot,id)=>workGearSlots.includes(slot)?game.gear(id):game.tool(id);
+export const workEnhancementLimit=id=>id&&game.canEnhance(id)?game.itemEnhancementLimit(id):0;
+export function normalizeWorkGear(slot,value){
+ const id=Number(value?.id);
+ if(!slotItems(slot).some(g=>g.itemId===id))return {id:0,tier:0,plus:0};
+ return {id,tier:game.itemSupportsRarity(id)?integer(value.tier??0,0,4):0,plus:integer(value.plus??0,0,workEnhancementLimit(id))};
+}
 const sitesForJob=job=>game.world.sites.filter(s=>s.jobIds.includes(job.id));
 export function gatheringDefaults(){return {
  skill:'mining',levels:Object.fromEntries(gatheringSkills.map(k=>[k,1])),
@@ -31,7 +46,7 @@ export function normalizeGathering(raw,{wholeHours=true}={}){
  const s=gatheringDefaults();if(!raw||typeof raw!=='object')return s;
  s.skill=gatheringSkills.includes(raw.skill)?raw.skill:s.skill;
  for(const k of gatheringSkills)s.levels[k]=integer(raw.levels?.[k]??1,1,game.maxLevel);
- for(const slot of gatheringSlots){const v=raw.gear?.[slot];if(v&&slotItems(slot).some(g=>g.itemId===Number(v.id)))s.gear[slot]={id:Number(v.id),tier:game.itemSupportsRarity(Number(v.id))?integer(v.tier??0,0,4):0,plus:game.canEnhance(Number(v.id))?integer(v.plus??0,0,game.maxEnhancement):0};}
+ for(const slot of gatheringSlots)s.gear[slot]=normalizeWorkGear(slot,raw.gear?.[slot]);
  for(const p of gatheringPotions)s.brews[p.kind]=integer(raw.brews?.[p.kind]??-1,-1,4,-1);
  for(const r of gatheringRooms)s.house[r.id]=integer(raw.house?.[r.id]??0,0,game.houseLevelLimit);
  for(const m of gatheringMasteries)s.masteries[m.id]=integer(raw.masteries?.[m.id]??0,0,game.masteryRankLimit);
@@ -68,7 +83,7 @@ export function gatheringPlayer(raw){
 export function gatheringStats(raw){const {state:s,player:p}=gatheringPlayer(raw),mod=game.workModifiers(p,s.skill),v=s.gear[toolSlots[s.skill]],tool=v.id?game.tool(game.encode(game.withRarity(v.id,v.tier),v.plus)):null;
  const luck=(v.id?game.toolLuck(p.equipment[toolSlots[s.skill]]):0)+game.equipmentLuck(p.equipment);
  const luckBonus=(1+luck)*game.combine(game.brewRarityMultiplier(p),game.houseRarityMultiplier(p),game.masteryMultiplier(p.masteries,'rare'))-1;
- return {level:s.levels[s.skill],toolBonus:tool?.bonus??0,speedBonus:mod.combined-1,luck,luckBonus,moveSpeed:Math.round(game.mountSpeed(p)*(1+.2*game.brewScale(p,'swift'))*(1+s.masteries.move*.005))/1000,capacity:game.packCapacity(p)};
+ return {level:s.levels[s.skill],toolBonus:tool?.bonus??0,speedBonus:mod.combined-1,luck,luckBonus,moveSpeed:workStrideSpeed(p)/1000,capacity:game.packCapacity(p)};
 }
 export function gatheringJobStats(raw,job){const {player:p}=gatheringPlayer(raw),chance=game.workChance(job,p);return {chance,seconds:game.tickMs/1000/chance,caught:game.caughtChance(job,p)};}
 export function importGathering(current,snapshot){

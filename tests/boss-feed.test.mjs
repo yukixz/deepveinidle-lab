@@ -109,17 +109,45 @@ test('revalues existing route estimates with current quotes and time charges', (
   assert.deepEqual(bar.xpBySkill,original.xpBySkill);
 });
 
-test('covers the five skill pairings and all 560 direct-buy item variants', () => {
+test('covers the five skill pairings, existing direct-buy variants and universal boss essence', () => {
   assert.equal(bossList.length,5);
   let count = 0;
   for (const boss of bossList) {
     const rows = compare({bossId:boss.id,settings:{strategy:'buy'}});
     assert.equal(new Set(rows.map(row => row.itemId)).size,rows.length);
-    assert.deepEqual(new Set(rows.map(row => row.skill)),new Set(boss.skills));
+    const essence = find(rows,778,'buy');
+    assert.ok(essence);
+    assert.equal(essence.xpPerItem,0);
+    assert.equal(essence.feedSecondsPerItem,.51);
+    assert.deepEqual(new Set(rows.filter(row => row.itemId !== 778).map(row => row.skill)),new Set(boss.skills));
     assert.ok(rows.every(row => row.status === 'ok' && row.feedSecondsPerItem > 0));
     count += rows.length;
   }
-  assert.equal(count,560);
+  assert.equal(count,565);
+});
+
+test('Bosskeeper effects stack and tonic doses enter purchase cost', () => {
+  const base = find(compare(),1008,'buy');
+  const config = {...character,equipment:{...character.equipment,earring:254988},brews:{...character.brews,bosskeeper:0}};
+  const noQuote = find(compare({config}),1008,'buy');
+  const pricedTonic = createPriceSnapshot({...priceDefaults(),prices:{1008:{price:1,locked:true},990:{price:100,locked:true}}});
+  const boosted = find(compare({config,priceSnapshot:pricedTonic}),1008,'buy');
+  assert.ok(Math.abs(boosted.points/base.points-1.4)<1e-12);
+  assert.equal(noQuote.materialGold,null);
+  const tonic = boosted.materials.find(item => item.id === 990);
+  assert.equal(tonic.quantity,Math.ceil(boosted.feedSeconds/3600));
+  assert.equal(boosted.materialGold,boosted.materials.reduce((sum,item) => sum+item.quantity*item.unitPrice,0));
+});
+
+test('imports active Bosskeeper tonic, earring and Packmaster coat without dropping enhancements', () => {
+  const snapshot = {version:2,capturedAt:Date.now(),player:{lastTick:10,skills:{mining:levelXp(100)},
+    equipment:{earring:254988,body:254989},brews:{bosskeeper:11}}};
+  const {config} = importLabCharacter(snapshot,character,['mining']);
+  assert.equal(config.equipment.earring,254988);
+  assert.equal(config.equipment.body,254989);
+  assert.equal(config.brews.bosskeeper,0);
+  const expired = importLabCharacter({...snapshot,player:{...snapshot.player,lastTick:11}},config,['mining']);
+  assert.equal(expired.config.brews.bosskeeper,-1);
 });
 
 test('imports other boss levels, both bound mastery pages and active world XP', () => {

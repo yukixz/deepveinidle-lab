@@ -1,4 +1,4 @@
-import {startFight as startCombat} from '../src/upstream-combat.js';
+import {startFight as startCombat} from '../src/upstream.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {game,defaults,preset} from '../src/model.js';

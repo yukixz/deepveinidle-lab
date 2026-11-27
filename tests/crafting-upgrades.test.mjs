@@ -11,6 +11,17 @@ test('27 upgrade recipes share the recipe catalogue without retired tasks or ID 
  assert.ok(craftingJobs.some(j=>j.id===271));assert.ok(craftingJobs.some(j=>j.id==='upgrade-271'));
 });
 
+test('rare steel whetstones use rare bars and yield ten supplies per completed craft',()=>{
+ const job=craftingJobs.find(job=>job.id===700);
+ assert.ok(job);
+ assert.deepEqual(craftingMaterials(job,2,2),{2042:6});
+ const state=craftingDefaults();state.levels.smithing=60;
+ const result=simulateCrafting(state,job,2,2);
+ assert.equal(result.complete,true);
+ assert.equal(result.completed,2);
+ assert.equal(result.items[2962],20);
+});
+
 test('legendary upgrade materials include same-quality +0 base and exact extra quantities',()=>{
  const blade=upgrades.find(j=>j.id==='upgrade-271'),bow=upgrades.find(j=>j.id==='upgrade-264');
  assert.deepEqual(craftingMaterials(blade,4,2),{4114:2,4252:4});

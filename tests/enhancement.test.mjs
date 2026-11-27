@@ -1,9 +1,56 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../src/upstream.js';
-import {enhancementDefaults,enhanceableItems,validateEnhancement,enhancementSteps,calculateEnhancement,enhancementFee,importEnhancement,decodeEnhancementItem} from '../src/enhancement.js';
+import {enhancementDefaults,enhanceableItems,validateEnhancement,enhancementSteps,calculateEnhancement,enhancementFee,importEnhancement,decodeEnhancementItem,resolveEnhancementPrices} from '../src/enhancement.js';
 const config=patch=>({...enhancementDefaults(),itemId:110,tier:0,target:5,protect:false,...patch});
 const near=(actual,expected)=>assert.ok(Math.abs(actual-expected)<=1e-9*Math.max(1,Math.abs(expected)),`${actual} != ${expected}`);
+
+test('current rules recognize item caps and preserve historical enhancements',()=>{
+ assert.throws(()=>calculateEnhancement(config({itemId:328,target:21})),/targetAboveLimit/);
+ assert.equal(calculateEnhancement(config({itemId:328,current:100,target:100})).totals.gold,0);
+ assert.doesNotThrow(()=>calculateEnhancement(config({itemId:853,current:39,target:40,protect:true})));
+ assert.throws(()=>calculateEnhancement(config({itemId:853,current:40,target:41})),/targetAboveLimit/);
+ assert.equal(enhancementSteps(config({itemId:114,target:1}))[0].gold,12000);
+ const historical=game.encode(328,100),unfinished=game.encodeRelics(game.encode(918,2),1);
+ assert.deepEqual(decodeEnhancementItem(historical),{itemId:328,tier:0,current:100,id:historical});
+ assert.deepEqual(decodeEnhancementItem(unfinished),{itemId:918,tier:0,current:2,id:unfinished,relics:1});
+ assert.throws(()=>decodeEnhancementItem(game.encodeRelics(game.encode(328,2),1)),/invalidSnapshot/);
+});
+
+test('old pricing keeps overrides and values new materials by their native item IDs',()=>{
+ const old=config({shardPrice:12,priceModes:{shardPrice:'manual',scrollPrice:'global',basePrice:'global'}});
+ for(const key of ['essencePrice','corePrice','useCore'])delete old[key];
+ const next=resolveEnhancementPrices(old,{},id=>id);
+ assert.equal(next.useCore,false);
+ assert.equal(next.shardPrice,12);
+ assert.equal(next.essencePrice,764);
+ assert.equal(next.corePrice,212);
+ assert.equal(next.priceModes.essencePrice,'global');
+ assert.equal(next.priceModes.corePrice,'global');
+ const free=resolveEnhancementPrices({...next,essencePrice:44,priceModes:{...next.priceModes,essencePrice:'manual'}},{},id=>id,true);
+ assert.deepEqual([free.shardPrice,free.scrollPrice,free.essencePrice,free.corePrice,free.basePrice],[0,0,0,0,110]);
+});
+
+test('high protection holds +20; essence, cores and retry pity enter the mean',()=>{
+ const s=config({itemId:853,current:20,target:21,protect:true,useCore:true,shardPrice:0,scrollPrice:30,essencePrice:2,corePrice:50});
+ const r=calculateEnhancement(s),step=r.steps[20];
+ assert.equal(step.failTo,20);
+ assert.equal(step.core,1);
+ assert.ok(step.essence>0);
+ near(step.chance,.53);
+ let expAttempts=0,survival=1;
+ for(let n=0;n<99;n++){
+  expAttempts+=survival;
+  survival*=1-Math.min(.95,.53*(1+Math.min(1,n/10)));
+ }
+ near(r.totals.attempts,expAttempts);
+ near(r.totals.scrolls,expAttempts-1);
+ near(r.totals.essence,step.essence*expAttempts);
+ near(r.totals.cores,expAttempts);
+ near(r.pricedGold,expAttempts*(step.gold+2*step.essence+50)+(expAttempts-1)*30);
+ assert.deepEqual(calculateEnhancement({...s,essencePrice:null}).missingPrices,['essence']);
+ assert.deepEqual(calculateEnhancement({...s,corePrice:null}).missingPrices,['cores']);
+});
 // Independent Gaussian elimination of the absorbing chain (small targets).
 function linearExpected(steps,start,reward){
  const n=steps.length,a=steps.map((s,k)=>{const row=Array(n+1).fill(0);row[k]=1;if(k+1<n)row[k+1]-=s.chance;row[s.failTo]-=1-s.chance;row[n]=reward(s);return row;});
@@ -17,21 +64,23 @@ function linearExpected(steps,start,reward){
 const snapshot=()=>({version:2,capturedAt:Date.now(),player:{skills:{enhancing:game.levelXp(32)+3},house:{lectern:12},houseFurniture:{lectern:{cell:1,slot:0}},masteries:{enhance:3},equipment:{mount:game.encode(game.withRarity(328,2),5)},bank:{[game.encode(game.withRarity(328,2),5)]:1,80:3,64:100},pack:[{itemId:110,qty:1}],overflow:{81:1}}});
 
 test('all original enhanceable equipment and tools appear once',()=>{
- const expected=[...new Set([...game.equipment,...game.tools].map(x=>x.itemId))].filter(id=>game.canEnhance(id));
+ const expected=[...new Set([...game.equipment,...game.tools].filter(x=>game.itemTier(x.itemId)===0).map(x=>x.itemId))].filter(id=>game.canEnhance(id));
  assert.deepEqual(enhanceableItems.map(x=>x.id),expected);
  for(const x of enhanceableItems)for(let tier=0;tier<5;tier++)assert.doesNotThrow(()=>validateEnhancement(config({itemId:x.id,tier})));
 });
 test('original chances, costs, XP and multipliers match independent vectors',()=>{
- let step=enhancementSteps(config({itemId:328,tier:2,level:32,target:6}))[5];near(step.chance,.7434);assert.equal(step.gold,144000);assert.equal(step.shards,18);assert.equal(step.xp,360);
- step=enhancementSteps(config({itemId:328,tier:4,level:32,lectern:7,mastery:11,target:20}))[19];near(step.chance,.2*1.062*1.07*1.0275);assert.equal(step.gold,3000000);assert.equal(step.shards,60);assert.equal(step.xp,10000);
+ let step=enhancementSteps(config({itemId:328,tier:2,level:32,target:6}))[5];near(step.chance,.7434);assert.equal(step.gold,144000);assert.equal(step.shards,18);assert.equal(step.xp,660);
+ step=enhancementSteps(config({itemId:328,tier:4,level:32,lectern:7,mastery:11,target:20}))[19];near(step.chance,.2*1.062*1.07*1.0275);assert.equal(step.gold,3000000);assert.equal(step.shards,60);assert.equal(step.xp,19500);
  for(const [tier,multiplier]of [1,3,8,20,50].entries())assert.equal(enhancementSteps(config({itemId:328,tier,target:1}))[0].gold,3000*multiplier);
  const levels=[15,30,50,75,90],bases=[100,300,1000,3000,8000,20000];
  // Reviewed level-105 tools retain the Meteoric (level 85) enhancement cost tier.
  const forgedTools=new Set([698,699,572,573,575,576,711,712,718,719]);
- for(const item of enhanceableItems){const recipe=game.recipes.find(x=>x.output.itemId===item.id),upgrade=game.upgradeRecipes.find(r=>r.to.includes(item.id)),level=forgedTools.has(item.id)?85:recipe?.levelReq??upgrade?.levelReq,base=level===undefined?3000:bases[levels.filter(x=>level>=x).length];assert.equal(enhancementSteps(config({itemId:item.id,target:1}))[0].gold,base);}
+ const meteoric=new Set([114,394,119,124,129,134]);
+ for(const item of enhanceableItems.filter(item=>item.id<853)){const recipe=game.recipes.find(x=>x.output.itemId===item.id),upgrade=game.upgradeRecipes.find(r=>r.to.includes(item.id)),level=forgedTools.has(item.id)?85:recipe?.levelReq??upgrade?.levelReq,base=meteoric.has(item.id)?12000:level===undefined?3000:bases[levels.filter(x=>level>=x).length];assert.equal(enhancementSteps(config({itemId:item.id,target:1}))[0].gold,base,item.name);}
+ for(const id of [853,904,918,980])assert.equal(enhancementSteps(config({itemId:id,target:1}))[0].gold,20000);
 });
-test('protection uses current +2 and only charges a scroll on failure',()=>{
- const steps=enhancementSteps(config({protect:true,target:4}));assert.equal(steps[1].protected,false);assert.equal(steps[2].protected,true);assert.equal(steps[2].failTo,1);assert.equal(steps[3].failTo,2);
+test('protection keeps +1 through +3, then drops one, and charges on failure only',()=>{
+ const steps=enhancementSteps(config({protect:true,protectFrom:1,target:5}));assert.equal(steps[0].protected,false);assert.ok(steps.slice(1).every(step=>step.protected));assert.deepEqual(steps.map(step=>step.failTo),[0,1,2,3,3]);
  const r=calculateEnhancement(config({protect:true,target:4,lectern:50}));assert.equal(r.totals.scrolls,0);
 });
 test('positive recurrence matches independent chain solution, including rebuilding below start',()=>{
@@ -47,22 +96,22 @@ test('100% steps equal deterministic sums and +20 remains finite and positive',(
  for(const protect of [false,true]){const result=calculateEnhancement(config({target:20,protect}));for(const value of Object.values(result.totals))assert.ok(Number.isFinite(value)&&value>=0);assert.ok(result.totals.attempts>20);}
 });
 test('zero target cost, blank prices and explicit zero pricing stay distinct',()=>{
- const zero=calculateEnhancement(config({current:5,target:5}));assert.deepEqual(zero.totals,{gold:0,shards:0,scrolls:0,attempts:0,seconds:0});assert.equal(zero.pricedGold,0);
+ const zero=calculateEnhancement(config({current:5,target:5}));assert.deepEqual(zero.totals,{gold:0,shards:0,scrolls:0,essence:0,cores:0,attempts:0,seconds:0});assert.equal(zero.pricedGold,0);
  const blank=calculateEnhancement(config());assert.equal(blank.pricedGold,null);assert.equal(blank.purchaseTotal,null);
  const priced=calculateEnhancement(config({shardPrice:0,basePrice:120}));assert.equal(priced.pricedGold,priced.totals.gold);assert.equal(priced.purchaseTotal,priced.totals.gold+120);
  const protectedResult=calculateEnhancement(config({protect:true,shardPrice:10,scrollPrice:20,basePrice:0}));near(protectedResult.pricedGold,protectedResult.totals.gold+10*protectedResult.totals.shards+20*protectedResult.totals.scrolls);
 });
 test('invalid configuration fails explicitly',()=>{
- for(const patch of [{current:7,target:6},{level:null},{current:1.5},{target:101},{lectern:-1},{mastery:.5},{protectFrom:1},{protect:'true'},{shardPrice:NaN},{scrollPrice:-1},{itemId:64}])assert.throws(()=>calculateEnhancement(config(patch)));
+ for(const patch of [{current:7,target:6},{level:null},{current:1.5},{target:101},{lectern:-1},{mastery:.5},{protectFrom:0},{protect:'true'},{useCore:'true'},{shardPrice:NaN},{scrollPrice:-1},{essencePrice:-1},{corePrice:Infinity},{itemId:64}])assert.throws(()=>calculateEnhancement(config(patch)));
 });
 test('profit margin covers enhancement and base costs, with explicit pricing required',()=>{
  const r=calculateEnhancement(config({target:3,protect:true,shardPrice:10,scrollPrice:20,basePrice:120}));
- // For +0 to +3: costs at +2 are divided by .88; protected failure
- // repeats +1 (chance .94), whose failure also repeats +0;
+ // For +0 to +3: protected failure at +2 retries +2 (chance .88).
+ // +1 is unprotected and resets to +0 on failure;
  // each failed +2 attempt spends one scroll.
  const goldStep1=(200+.06*100)/.94,shardStep1=(6+.06*3)/.94;
- const gold=100+goldStep1+(300+.12*goldStep1)/.88;
- const shards=3+shardStep1+(9+.12*shardStep1)/.88;
+ const gold=100+goldStep1+300/.88;
+ const shards=3+shardStep1+9/.88;
  const scrolls=.12/.88;
  near(r.expectedFee,(gold+shards*10+scrolls*20+120)/.87);
  assert.equal(calculateEnhancement(config({shardPrice:10})).expectedFee,null);

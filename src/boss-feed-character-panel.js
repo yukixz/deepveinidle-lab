@@ -1,24 +1,26 @@
 import {
   characterEquipmentOptions, characterLimits, createCharacterContext, decodeEquipment, encodeEquipment,
-  equipmentCanEnhance, isGatheringSkill, masteryKeys, normalizeCharacter, potionKinds, roomsFor, sharedEquipmentSlots,
+  equipmentCanEnhance, equipmentEnhancementLimit, isGatheringSkill, masteryKeys, normalizeCharacter, potionKinds, roomsFor, sharedEquipmentSlots,
   toolSlots, validEquipmentTiers,
 } from './boss-feed-character.js';
-import {bossFeedRules,houseBonus,item,potions} from './upstream.js';
+import * as game from './upstream.js';
 import {bossText, escape} from './boss-feed-copy.js';
 import {translatedName} from './i18n.js';
 import {bonusPercent} from './number-format.js';
-import {outfitPiece,workOutfitNote} from './work-config-effects.js';
+import {outfitPiece,packmasterEffectsNote,workOutfitNote} from './work-config-effects.js';
 import {potionEffectNote} from './potion-effects.js';
 import {masteryRank,masteryValue} from './model.js';
 
 const slotNames = {
   shield:['副手','Off-hand'], mount:['坐骑','Mount'], helmet:['头部','Head'], body:['胸部','Body'], legs:['护腿','Legs'],
+  earring:['耳环','Earring'],
 };
 const masteryNames = {
   xp:['经验获取','Experience gain'], move:['移动速度','Movement speed'],
   gather:['采集速度','Gathering speed'], craft:['制造速度','Crafting speed'],
 };
-const potionOptions = potionKinds.map(kind =>
+const {bossFeedRules,houseBonus,item,potions} = game;
+const potionOptions = potionKinds.filter(kind => kind !== 'bosskeeper').map(kind =>
   [kind,item(potions.find(potion => potion.kind === kind).itemId).name]);
 
 export function renderBossAttributes(host, config, boss, language) {
@@ -163,6 +165,8 @@ export function renderCharacterPanel(host, {config, boss, language, onChange}) {
       const actor = context.actorFor(toolSkill ?? boss.skills[0]);
       if (toolSkill) return t('工具速度','Tool speed') + ' ' + percent(bossFeedRules.workSpeed(actor,toolSkill).tool - 1);
       if (slot === 'mount') return t('移动速度','Movement speed') + ' ' + percent(bossFeedRules.mountStride(actor) / 1000 - 1);
+      if (slot === 'earring') return t('投喂点数','Feeding points') + ' ' + percent(game.worldEarringBonus(actor.equipment,'bosskeeper'));
+      if (slot === 'body' && game.baseItemId(actor.equipment.body ?? 0) === game.packmasterCoatId) return packmasterEffectsNote(actor.equipment,language);
       if (slot === 'shield') {
         return t('技能速度','Skill speed') + ' · ' + boss.skills.map(key =>
           skill(key) + ' ' + percent(bossFeedRules.sideSkillBonus(actor.equipment,key))).join(' · ');
@@ -183,7 +187,7 @@ export function renderCharacterPanel(host, {config, boss, language, onChange}) {
       const quality = selectInput(choices.map(tier => [tier,rarity(tier)]),tier,
         value => update(base,value,decodeEquipment(state.equipment[slot]).plus));
       quality.disabled = choices.length < 2;
-      const enhance = numberInput(plus,characterLimits.enhancement,value => update(base,Number(quality.value),value));
+      const enhance = numberInput(plus,equipmentEnhancementLimit(base),value => update(base,Number(quality.value),value));
       enhance.disabled = !equipmentCanEnhance(base);
       item.setAttribute('aria-label',title);
       quality.setAttribute('aria-label',title + ' ' + t('稀有度','Rarity'));
@@ -216,11 +220,15 @@ export function renderCharacterPanel(host, {config, boss, language, onChange}) {
       ' · ' + t('套装投喂贡献合计','Outfit feeding contribution total') + ' ' +
       percent(bossFeedRules.outfitContribution(state.equipment,boss.key)),'micro work-outfit-total'),
   ]);
-  section('potions',t('药水','Potions'),potionOptions.map(([kind,name]) =>
+  section('potions',t('药水','Potions'),[...potionOptions.map(([kind,name]) =>
     withNote(select(translatedName(name,language),[[-1,t('未启用','Inactive')],...[0,1,2,3,4].map(tier => [tier,rarity(tier)])],
       state.brews[kind],value => edit(next => next.brews[kind] = value),'potion'),
     () => potionEffectNote(kind,state.brews[kind],language) + (kind === 'gatherer'
-      ? t(' · 适用于采集品投喂',' · Applies to feeding gathered items') : ''))));
+      ? t(' · 适用于采集品投喂',' · Applies to feeding gathered items') : ''))),
+    checkbox(translatedName(item(game.bosskeeperTonicId).name,language),state.brews.bosskeeper === 0,
+      enabled => edit(next => next.brews.bosskeeper = enabled ? 0 : -1)),
+    element('p',t('补剂每瓶持续一小时，按投喂时长计入采购成本。','Each tonic lasts one hour. The purchase cost covers the feeding duration.'),'micro'),
+  ]);
   section('home',t('家园','Home'),roomsFor(boss.skills).map(room => withNote(numeric(translatedName(room.name,language),
     state.house[room.id],room.maxLevel ?? characterLimits.house,value => edit(next => next.house[room.id] = value)),
   () => t(`${skill(room.bonus.skill)}速度`,`${skill(room.bonus.skill)} speed`) + ' · ' +

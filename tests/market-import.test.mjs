@@ -6,6 +6,14 @@ import {parseMarketPrices,requestMarket,marketPricesUrl} from '../src/market-imp
 const generatedAt=new Date(Date.now()-1000).toISOString();
 const payload=(items={1:{lowestSell:84,highestBuy:null},1110:{lowestSell:900,highestBuy:700}})=>({game:'Deep Vein Idle',generatedAt,refreshSeconds:300,items});
 
+test('dungeon materials and rare supplies keep their full quote IDs',()=>{
+ const quote={lowestSell:84,sellQty:5,highestBuy:70,buyQty:12,avg7d:75,avg30d:78};
+ const parsed=parseMarketPrices(payload({850:quote,909:quote,2962:quote,990:quote}));
+ assert.equal(parsed.invalid,0);
+ assert.deepEqual(Object.keys(parsed.quotes),['850','909','990','2962']);
+ assert.equal(parsed.quotes[909].bid.quantity,12);
+});
+
 test('official prices map full variant IDs and use generation time, with null distinct from missing',()=>{
  const s=parseMarketPrices(payload({1:{lowestSell:84,highestBuy:null},1110:{lowestSell:900,highestBuy:700},2:{lowestSell:5},3:{lowestSell:0,highestBuy:'1'},9999999:{lowestSell:1,highestBuy:2}}));
  assert.deepEqual(s.quotes[1],{ask:{value:84,capturedAt:Date.parse(generatedAt),quantityInvalid:true},bid:{value:null,capturedAt:Date.parse(generatedAt),quantityInvalid:true},avg7d:{invalid:true,capturedAt:Date.parse(generatedAt)},avg30d:{invalid:true,capturedAt:Date.parse(generatedAt)}});
