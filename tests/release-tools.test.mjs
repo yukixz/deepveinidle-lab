@@ -51,10 +51,24 @@ test('package evidence is invalidated by app/test/docs/lock changes and rejects 
  }
  await json(path.join(evidence,'check.json'),{...receipt,steps:receipt.steps.slice(1)});await assert.rejects(buildPackage(root,evidence,path.join(root,'.test-artifacts/output')),/Incomplete check receipt/);
 });
-test('symbolic application paths and extra package files cannot pass verification',async t=>{
+test('extra package files cannot pass verification',async t=>{
  const {root,evidence}=await fixture(t),out=path.join(root,'.test-artifacts/package');await buildPackage(root,evidence,out);
  await fs.writeFile(path.join(out,'secret.txt'),'secret');await assert.rejects(verify(root,evidence,out,'http://127.0.0.1:1',path.join(root,'.test-artifacts/verify')),/Unexpected package files/);
- await fs.symlink(path.join(root,'README.md'),path.join(root,'src/linked.js'));await assert.rejects(packageFiles(root),/Symbolic link/);
+});
+test('linked application entries cannot be packaged',async t=>{
+ const {root}=await fixture(t),entry=path.join(root,'src/linked.js');
+ try{await fs.symlink(path.join(root,'README.md'),entry,'file');}
+ catch(error){
+  if(process.platform!=='win32'||error.code!=='EPERM')throw error;
+  t.diagnostic('Windows denied symlink creation; simulating the linked directory entry.');
+  const readdir=fs.readdir;
+  t.mock.method(fs,'readdir',async (directory,options)=>{
+   const entries=await readdir(directory,options);
+   if(directory===path.dirname(entry))entries.push({name:path.basename(entry),isSymbolicLink:()=>true});
+   return entries;
+  });
+ }
+ await assert.rejects(packageFiles(root),/Symbolic link/);
 });
 test('HTTP checks verify all routes, content and asset hashes and reject route/version-page substitution',async t=>{
  const {root}=await fixture(t);let mode='valid';
@@ -96,10 +110,21 @@ test('verification refuses modified package bytes before contacting its target',
  await assert.rejects(verify(root,evidence,out,'http://127.0.0.1:1',path.join(root,'.test-artifacts/verify')),/Package file list or content changed/);
 });
 
-test('hidden/unknown application files and symbolic source directories are refused',async t=>{
+test('hidden and unknown application files are refused',async t=>{
  const {root}=await fixture(t);await fs.writeFile(path.join(root,'src','.env'),'private');await assert.rejects(packageFiles(root),/Not an application file/);await fs.unlink(path.join(root,'src','.env'));
- await fs.writeFile(path.join(root,'src','notes.md'),'not an application');await assert.rejects(packageFiles(root),/Not an application file/);await fs.unlink(path.join(root,'src','notes.md'));
- await fs.rename(path.join(root,'src'),path.join(root,'.test-artifacts','source'));await fs.symlink(path.join(root,'.test-artifacts','source'),path.join(root,'src'),'dir');await assert.rejects(packageFiles(root),/Symbolic directory/);
+ await fs.writeFile(path.join(root,'src','notes.md'),'not an application');await assert.rejects(packageFiles(root),/Not an application file/);
+});
+test('symbolic source directories are refused',async t=>{
+ const {root}=await fixture(t),source=path.join(root,'src'),target=path.join(root,'.test-artifacts','source');
+ await fs.rename(source,target);
+ try{await fs.symlink(target,source,process.platform==='win32'?'junction':'dir');}
+ catch(error){
+  if(process.platform!=='win32'||error.code!=='EPERM')throw error;
+  t.diagnostic('Windows denied junction creation; simulating the linked source directory.');
+  const lstat=fs.lstat;
+  t.mock.method(fs,'lstat',(file,options)=>file===source?{isSymbolicLink:()=>true}:lstat(file,options));
+ }
+ await assert.rejects(packageFiles(root),/Symbolic directory/);
 });
 
 test('local verification reports server startup failure without hanging or claiming success',async t=>{

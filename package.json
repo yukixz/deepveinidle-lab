@@ -1,6 +1,6 @@
 {
   "name": "deep-vein-idle-simulator",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
     "release:verify": "node scripts/release.mjs verify"
   },
   "devDependencies": {
-    "@dvi-lab/work-time": "https://github.com/MaryCLY/deepveinidle-work-time/archive/refs/tags/v0.3.0.tar.gz",
+    "@dvi-lab/work-time": "https://github.com/MaryCLY/deepveinidle-work-time/archive/refs/tags/v0.4.0.tar.gz",
     "acorn": "8.15.0",
     "eslint-scope": "8.4.0",
     "markdown-it": "15.0.2",

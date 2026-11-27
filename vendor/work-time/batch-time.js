@@ -4,9 +4,10 @@ import {callRule,requireCapability,tickMilliseconds} from './adapter.js';
 // The phase transitions in pN / RN / WOo of the reviewed 1.0.1214 snapshot.
 // This is an analytical approximation: initial pack is empty, all materials are
 // available, the main-city warehouse is the origin, and the last batch is banked.
-// Rare bonus drops and future level/brew changes do not alter batch capacity.
+// Callers may provide an expected gathering capacity for the current snapshot.
 export const batchTimeModel=Object.freeze({sourceVersion:'1.0.1214',version:3,
  initialCraftTicks:5,initialGatherTicks:2,turnoverTicks:6,finishTicks:2,walkStartTicks:1});
+const exactTripLimit=128;
 export function createBatchTimeEstimator(game,{resolveMovement}={}){
 const routes=new Map(),siteRoutes=new Map();
 const checked=value=>{if(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER)throw Error('quantityOverflow');return value;};
@@ -101,6 +102,62 @@ function walking(route,batches,strideSpeed){
  return {walkTicks:ticks(route.distance),returnWalkTicks:ticks(route.returnDistance),totalWalkTicks:total('walk'),walkStarts:total('starts')};
 }
 
+function walkingAtMeanTrips(route,strideSpeed,batches){
+ const whole=Math.floor(batches);
+ const walks=walking(route,whole,strideSpeed),fraction=batches-whole;
+ if(fraction>0){
+  const next=walking(route,whole+1,strideSpeed);
+  walks.totalWalkTicks+=fraction*(next.totalWalkTicks-walks.totalWalkTicks);
+  walks.walkStarts+=fraction*(next.walkStarts-walks.walkStarts);
+ }
+ return {...walks,batches};
+}
+
+function batchWalks(route,strideSpeed,attempts,capacity){
+ if(capacity===Infinity)return {...walking(route,1,strideSpeed),batches:1};
+ const smaller=Math.floor(capacity),larger=Math.ceil(capacity);
+ const minTrips=Math.ceil(attempts/larger),maxTrips=Math.ceil(attempts/smaller);
+ if(minTrips===maxTrips)return {...walking(route,minTrips,strideSpeed),batches:minTrips};
+ const shortChance=larger-capacity,longChance=1-shortChance;
+ if(maxTrips>exactTripLimit){
+  // The stationary number of unused attempts in the last trip is
+  // E[X(X-1)]/(2 E[X]) for an integer trip capacity X.
+  const leftover=(shortChance*smaller*(smaller-1)+longChance*larger*(larger-1))/(2*capacity);
+  const batches=Math.min(maxTrips,Math.max(minTrips,(attempts+leftover)/capacity));
+  const approximate=walkingAtMeanTrips(route,strideSpeed,batches);
+  // The approximation is monotone, but can start below the exact estimate
+  // at the cutoff. Once it reaches the trip limit, all cutoff paths cost less.
+  if(batches>=exactTripLimit)return approximate;
+  const cutoff=batchWalks(route,strideSpeed,exactTripLimit*smaller,capacity);
+  return {...approximate,batches:Math.max(batches,cutoff.batches),
+   totalWalkTicks:Math.max(approximate.totalWalkTicks,cutoff.totalWalkTicks),
+   walkStarts:Math.max(approximate.walkStarts,cutoff.walkStarts)};
+ }
+ // Distribution of short trips after k independent trips. Advance its
+ // binomial probabilities in place to avoid subtracting nearly equal CDFs.
+ const mass=new Float64Array(maxTrips);
+ mass[0]=1;
+ const first=walking(route,minTrips,strideSpeed);
+ let previous=first,batches=minTrips,totalWalkTicks=first.totalWalkTicks,walkStarts=first.walkStarts;
+ const spareOnLongestTrips=(larger-attempts%larger)%larger;
+ for(let k=1;k<maxTrips;k++){
+  for(let short=k;short>0;short--)mass[short]=mass[short]*longChance+mass[short-1]*shortChance;
+  mass[0]*=longChance;
+  if(k<minTrips)continue;
+  // Each short trip uses up one unit of spare capacity.
+  const spare=spareOnLongestTrips+(k-minTrips)*larger;
+  let needNext=0;
+  for(let short=spare+1;short<=k;short++)needNext+=mass[short];
+  if(needNext===0)break;
+  batches+=needNext;
+  const next=walking(route,k+1,strideSpeed);
+  totalWalkTicks+=needNext*(next.totalWalkTicks-previous.totalWalkTicks);
+  walkStarts+=needNext*(next.walkStarts-previous.walkStarts);
+  previous=next;
+ }
+ return {...first,batches,totalWalkTicks,walkStarts};
+}
+
 function movement(player){
  const feature='estimateBatchTime.movement';
  if(!player||!Number.isInteger(player.perks?.pockets)||player.perks.pockets<0||player.perks.pockets>5
@@ -154,7 +211,7 @@ function capacity(job,tier,slots){
  return Math.floor((slots-stacks)/job.output.qty);
 }
 
-function estimateBatchTime({job,tier=0,count,player,actionSeconds,discard=false,siteId}){
+function estimateBatchTime({job,tier=0,count,player,actionSeconds,discard=false,siteId,resolveCapacity}){
   if(!Number.isInteger(tier)||tier<0||tier>4)throw Error('invalidTier');
  if(!Number.isFinite(count)||count<=0||count>Number.MAX_SAFE_INTEGER)throw Error('invalidQuantity');
  if(!Number.isFinite(actionSeconds)||actionSeconds<0)return unknown(null,'actionTime');
@@ -162,10 +219,9 @@ function estimateBatchTime({job,tier=0,count,player,actionSeconds,discard=false,
  if((discard&&gatheringSkills.includes(job.skill))||job.skill==='thieving'||job.upgrade)return {...base,status:'ok',seconds:workSeconds,overheadSeconds:0,batches:0,batchCapacity:null};
  const travel=resolveMovement?resolveMovement(player):movement(player);if(!travel)return unknown(workSeconds,'movementConfiguration');
  const route=workRoute(job.id,siteId);if(!route)return unknown(workSeconds,'workLocation');
- const batchCapacity=capacity(job,tier,travel.slots);
+ const batchCapacity=resolveCapacity?resolveCapacity(travel.slots):capacity(job,tier,travel.slots);
  if(batchCapacity<=0)return {...base,status:'unreachable',seconds:null,overheadSeconds:null,batches:null,batchCapacity};
- const batches=batchCapacity===Infinity?1:Math.ceil(Math.ceil(count)/batchCapacity);
- const walks=walking(route,batches,travel.strideSpeed);
+ const {batches,...walks}=batchWalks(route,travel.strideSpeed,Math.ceil(count),batchCapacity);
  if(!Array.isArray(job.inputs))throw Error('invalidJob');
  const initialTicks=job.inputs.length?batchTimeModel.initialCraftTicks:batchTimeModel.initialGatherTicks;
  const overheadSeconds=checked((initialTicks+batchTimeModel.finishTicks+(batches-1)*batchTimeModel.turnoverTicks+walks.totalWalkTicks+walks.walkStarts*batchTimeModel.walkStartTicks)*tickMilliseconds(game,'estimateBatchTime')/1000);

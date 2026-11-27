@@ -384,6 +384,17 @@ test('fast gathering counts the two fishing rarity windows once',()=>{
  assert.ok(Math.abs(score('game')/score('off')-(1+.25/24))<.0001);
 });
 
+test('fast mining XP reflects the extra pack pressure from Keyfinder when banking',()=>{
+ const raw=gatheringInput('gatherXp',0);
+ const job=gatheringJobs.find(job=>job.id===2);
+ const gathering={...raw.gathering,levels:{...raw.gathering.levels,mining:job.levelReq},simulationHours:24};
+ const keyfinder={earring:{id:game.earringIds.keyfinder,tier:4,plus:25}};
+ const score=(gear,discardGathered)=>optimizeMastery({...raw,jobId:job.id,workMode:'fast',
+  gathering:{...gathering,gear,discardGathered}}).plans[0].stats.mean;
+ assert.ok(score(keyfinder,false)<score({},false));
+ assert.equal(score(keyfinder,true),score({},true));
+});
+
 test('both mastery modes value retained dungeon keys with the same frozen price inputs',()=>{
  const raw=gatheringInput('gatherIncome',0);
  Object.assign(raw.gathering,{ironman:true,discardGathered:true});

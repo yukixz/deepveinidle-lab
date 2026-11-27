@@ -11,7 +11,7 @@ const url=project.devDependencies[name];
 assert.equal(installed.name,name);
 assert.ok(url.endsWith(`/refs/tags/v${installed.version}.tar.gz`),'work-time install must match the pinned release');
 const checking=process.argv.includes('--check'),files={};
-const modules=['index','effective-engine','adapter','domain','batch-time','boss-feed'];
+const modules=['index','effective-engine','adapter','domain','batch-time','boss-feed','gathering-pack'];
 const sources=[...modules.map(module=>[`src/${module}.js`,`${module}.js`]),['LICENSE','LICENSE.txt']];
 if(!checking)await fs.mkdir(target,{recursive:true});
 for(const [input,output]of sources){

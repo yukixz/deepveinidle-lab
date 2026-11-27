@@ -1,15 +1,16 @@
 {
   "name": "@dvi-lab/work-time",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
-  "url": "https://github.com/MaryCLY/deepveinidle-work-time/archive/refs/tags/v0.3.0.tar.gz",
+  "url": "https://github.com/MaryCLY/deepveinidle-work-time/archive/refs/tags/v0.4.0.tar.gz",
   "files": {
     "index.js": "e1baff1127d18c1857cbab7b539abd39015a88b77317b193f4223ddeeda781a5",
-    "effective-engine.js": "7a4d92d6059f82ee5b678c0324f4cb856e245856955a281d968e1e8607003155",
+    "effective-engine.js": "fdcf08b60580b1281940e42cd9c576d190e7ea3e83b326442c2f6708774e675b",
     "adapter.js": "a10b9a5718c06648ccf93b5d9960c5534501718f1ff368df34a7508c44502aaa",
     "domain.js": "0609fc988c6ccadb3c0037bfffa236faf85c56a9ad342eec3643dc4e90933b32",
-    "batch-time.js": "4efebbaa520f8d51de8f55a7e57653cb05738c76ff21d89d1ba37a626495443f",
+    "batch-time.js": "6faf03daa8b628c8b79d40ff712b39e8178da92c7fc62111e0e338707872d284",
     "boss-feed.js": "0052992fa411746bab1e86d79d67422f9a87b76b9e683eae4ef1be380af4d156",
+    "gathering-pack.js": "71b7fc0a3700329dc8df4137ced785035229ac551659d1aa8930a3eadcec79c9",
     "LICENSE.txt": "4ee2c5ef6efe115861f82852aa959dc1976cc2e65294d8653fe180480922d072"
   }
 }

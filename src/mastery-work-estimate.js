@@ -67,7 +67,8 @@ export function createMasteryWorkEstimator(input,{crafting,experience,collection
   const character={
    skills:{[job.skill]:{level:game.level(player.skills[job.skill]),speedMultiplier:speed.combined,
     upgradeSpeedMultiplier:speed.tool*game.combine(speed.quick,speed.home)*speed.mastery,failureMultiplier:1-.03*player.perks.hands,
-    luck,rareFindBonus:game.combine(game.brewRarityMultiplier(player),game.houseRarityMultiplier(player),game.masteryMultiplier(ranks,'rare'))-1}},
+    luck,rareFindBonus:game.combine(game.brewRarityMultiplier(player),game.houseRarityMultiplier(player),game.masteryMultiplier(ranks,'rare'))-1,
+    keyDropMultiplier:1+game.worldEarringBonus(player.equipment,'keyfinder')}},
    movement:{strideSpeed:workStrideSpeed(player),capacity:game.packCapacity(player)},
   };
   const options={character,task:countTask,environment:intervals[0].environment};
@@ -83,7 +84,9 @@ export function createMasteryWorkEstimator(input,{crafting,experience,collection
   if(unit.status!=='ok')return unavailable;
   let attempts=activeSeconds/(unit.actionSeconds+unit.waitSeconds),batchCapacity=null;
   if(roundTrips||discard&&job.skill!=='thieving'){
-   const estimate=count=>engine.estimateBatchTime({character,task:{...countTask,count}});
+   const batchTick=Math.min(workStart,intervals.at(-1).until-1);
+   const {environment}=intervals.find(({until})=>batchTick<until);
+   const estimate=count=>engine.estimateBatchTime({...options,environment:{...environment,tick:batchTick},task:{...countTask,count}});
    const batch=estimate(1);
    if(batch.status!=='ok')return unavailable;
    batchCapacity=batch.batchCapacity;

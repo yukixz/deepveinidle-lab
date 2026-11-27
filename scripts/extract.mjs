@@ -209,13 +209,16 @@ const bossFeedRules={
 };
 const bossWorkTimeGame={
   tickMs:exportsMap.tickMs, recipes:exportsMap.recipes, upgradeRecipes:exportsMap.upgradeRecipes,
-  items:exportsMap.items, item:exportsMap.item, recipeInputs:exportsMap.recipeInputs,
+  items:exportsMap.items, item:exportsMap.item, coinItemId:exportsMap.coinItemId, recipeInputs:exportsMap.recipeInputs,
   recipeOutput:exportsMap.recipeOutput, itemSupportsRarity:exportsMap.itemSupportsRarity,
   rarityThresholds:exportsMap.rarityThresholds, hotRarityMultiplier:exportsMap.hotRarityMultiplier,
   world:exportsMap.world, siteEntrance:exportsMap.nearbyTile, walkPath:'NM',
   withRarity:exportsMap.withRarity, baseItemId:exportsMap.baseItemId, itemTier:exportsMap.itemTier,
   upgradeMaterials:exportsMap.upgradeMaterials, upgradeResult:exportsMap.upgradeResult,
   levelSpeedCoefficient:'ZIo', upgradeBaseTicks:'Seo', bonusMinimumUncommon:exportsMap.bonusMinimumUncommon,
+  levelXp:exportsMap.levelXp, skillPet:exportsMap.skillPet, skillPetChance:exportsMap.skillPetChance,
+  dungeonKeyTier:exportsMap.dungeonKeyTier, dungeonKeyBaseTicks:exportsMap.dungeonKeyBaseTicks,
+  dungeonKeyChance:exportsMap.dungeonKeyChance,
   bosses:bossFeedRules.rawBosses, bossUnlockLevel:'gc', bossFeedRecipe:bossFeedRules.feedRecipe,
   bossFeedParts:'rSo', bossUsesFarmingSpeed:bossFeedRules.feedUsesFarmingSpeed,
   bossHeartLayout:'xa', bossKrakenLayout:'Tn', bossColonyLayout:'Id', bossBlightLayout:'ti', bossSiegeLayout:'wl',
