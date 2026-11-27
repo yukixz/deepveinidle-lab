@@ -6,23 +6,19 @@
 
 ## 已发布基线
 
-生产为 **1.14.0**，战斗使用游戏 **1.0.1225**，其他页面使用共用快照 **1.0.1221**。角色 userscript **2.10.1**、桥接 **2.4**、数据协议 **2**。发布提交 `3417473bfe21f0957c3776b7f3f9d6e199cd10a6`。 [生产实验室](https://dvi-lab.pages.dev/) · [精确部署](https://8eba1362.dvi-lab.pages.dev/)
+生产为 **1.15.0**，各页共用游戏 **1.0.1228**。角色 userscript **2.10.1**、桥接 **2.4**、数据协议 **2**。发布提交为 511d0cc82c86c8a566e757c571e8495f9bab6291。 [生产实验室](https://dvi-lab.pages.dev/) · [精确部署](https://e9bcb5c3.dvi-lab.pages.dev/)
 
-普通战斗使用新版原始引擎，覆盖伤害抽样、同流派穿戴、地牢装备与耳环、强化上限、遗物进度和自动补给路线。组队地牢战斗仍未实现。 [战斗设计](pages/combat.md) · [上游来源](technical.md#62-原始代码复用)
-
-生产通过 639 项单测、320 组原版离线对照、完整检查及打包。精确部署和固定域名各通过 21 条路由、100 个公开资源和 40 组浏览器验收。 [1.14.0 发布报告](../reports/v1.14.0-release-2026-11-26.md) · [生产流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45847744171)
+生产流水线完成完整检查、打包和上传。首次精确地址请求返回 HTTP 500。对同一部署补跑两个线上目标，均通过 21 条路由、98 个公开资源和 40 组浏览器场景。 [1.15.0 发布报告](../reports/v1.15.0-release-2026-11-27.md) · [生产流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45925753209)
 
 <a id="已发布范围与本地待发布"></a>
 
 ## 本地待发布
 
-1.15.0 候选将各页面的原始数据与计算合并到游戏 1.0.1228 共用资源，更新强化、行情、零遗物装备、采集与制造、技能首领及精通与预报。生产基线见上节。独立游戏流程的后续范围见[路线图](roadmap.md)。
-
-- WSL Node 24 单测 657 项通过。提取重复生成、未知资源摘要拒绝及输出保护通过。`work-time` 和 Markdown 依赖文件验证通过。
-- 原始资源离线对照通过 320 组战斗、192 组装备变体、150 个采集点、951 组普通配方品质、135 组升级品质、79,000 组强化步骤及 49 个热门时段。
-- 本机浏览器通过双语桌面及窄屏专项，覆盖装备遗物、角色捕获、采集、制造、强化、投喂、行情、精通和预报。浏览器从官方接口读取的 3,922 条行情全部通过校验。
+1.15.0 共用资源适配已发布。后续功能范围见[路线图](roadmap.md)。
 
 ## Preview 与历史
+
+**1.15.0** 候选提交 511d0cc 的 Preview 发布与验收通过。 [Preview 流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45925264659) · [预览域名](https://preview.dvi-lab.pages.dev/)
 
 **1.14.0** 候选提交 `3417473` 的 Preview 发布与验收通过。 [Preview 流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45846881824) · [Preview 实验室](https://preview.dvi-lab.pages.dev/)
 
