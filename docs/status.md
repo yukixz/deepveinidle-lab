@@ -6,17 +6,19 @@
 
 ## 已发布基线
 
-生产为 **1.15.0**，各页共用游戏 **1.0.1228**。角色 userscript **2.10.1**、桥接 **2.4**、数据协议 **2**。发布提交为 511d0cc82c86c8a566e757c571e8495f9bab6291。 [生产实验室](https://dvi-lab.pages.dev/) · [精确部署](https://e9bcb5c3.dvi-lab.pages.dev/)
+生产为 **1.15.1**，各页共用游戏 **1.0.1228**。角色 userscript **2.10.1**、桥接 **2.4**、数据协议 **2**。发布提交为 `40439b97c1890f2eae2e57452984fcf471b1527a`。 [生产实验室](https://dvi-lab.pages.dev/) · [精确部署](https://8fa9fc62.dvi-lab.pages.dev/)
 
-生产流水线完成完整检查、打包和上传。首次精确地址请求返回 HTTP 500。对同一部署补跑两个线上目标，均通过 21 条路由、98 个公开资源和 40 组浏览器场景。 [1.15.0 发布报告](../reports/v1.15.0-release-2026-11-27.md) · [生产流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45925753209)
+生产流水线通过 660 项测试，精确部署地址和生产别名各通过 21 条路由、99 个公开资源和 40 组浏览器场景。 [1.15.1 发布](https://github.com/yukixz/deepveinidle-lab/releases/tag/v1.15.1) · [生产流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45963739570)
 
 <a id="已发布范围与本地待发布"></a>
 
 ## 本地待发布
 
-精通快速模式升级至 work-time 0.4.0，采矿、钓鱼和伐木的批次容量计入稀有掉落占格。后续功能范围见[路线图](roadmap.md)。
+精通快速模式的稀有掉落占格已随 1.15.1 发布。后续功能范围见[路线图](roadmap.md)。
 
 ## Preview 与历史
+
+**1.15.1** 候选提交 `40439b9` 的 Preview 发布与验收通过。 [Preview 流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45963042595)
 
 **1.15.0** 候选提交 511d0cc 的 Preview 发布与验收通过。 [Preview 流水线](https://github.com/yukixz/deepveinidle-lab/actions/runs/45925264659) · [预览域名](https://preview.dvi-lab.pages.dev/)
 
